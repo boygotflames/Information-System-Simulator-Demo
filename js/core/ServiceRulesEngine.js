@@ -24,6 +24,110 @@ export default class ServiceRulesEngine {
     return stall.menu.filter((recipeKey) => this.canServeRecipe(inventory, recipeKey));
   }
 
+  getUnavailableRecipeKeysForStall(inventory, stallId) {
+    const stall = this.catalog[stallId];
+    if (!stall) return [];
+
+    return stall.menu.filter((recipeKey) => !this.canServeRecipe(inventory, recipeKey));
+  }
+
+  getMenuAvailabilitySnapshot(inventory, stallId) {
+    const stall = this.catalog[stallId];
+    if (!stall) {
+      return {
+        availableRecipeKeys: [],
+        unavailableRecipeKeys: [],
+        availableLabels: [],
+        unavailableLabels: []
+      };
+    }
+
+    const availableRecipeKeys = this.getAvailableRecipeKeysForStall(inventory, stallId);
+    const unavailableRecipeKeys = this.getUnavailableRecipeKeysForStall(inventory, stallId);
+
+    return {
+      availableRecipeKeys,
+      unavailableRecipeKeys,
+      availableLabels: availableRecipeKeys.map(
+        (recipeKey) => this.recipeBook[recipeKey]?.label || recipeKey
+      ),
+      unavailableLabels: unavailableRecipeKeys.map(
+        (recipeKey) => this.recipeBook[recipeKey]?.label || recipeKey
+      )
+    };
+  }
+
+  buildCounterRecommendation({ inventory, queueBreakdown }) {
+    const stallViews = Object.values(this.catalog).map((stall) => {
+      const state = this.getStallState({
+        inventory,
+        stallId: stall.id,
+        queueBreakdown
+      });
+
+      const menuSnapshot = this.getMenuAvailabilitySnapshot(inventory, stall.id);
+
+      return {
+        stallId: stall.id,
+        stallName: stall.name,
+        queueLoad: state.queueLoad,
+        stateCode: state.code,
+        stateLabel: state.label,
+        availableRecipeKeys: menuSnapshot.availableRecipeKeys,
+        availableLabels: menuSnapshot.availableLabels,
+        unavailableLabels: menuSnapshot.unavailableLabels
+      };
+    });
+
+    const availableCounters = stallViews
+      .filter((view) => view.availableRecipeKeys.length > 0)
+      .sort((a, b) =>
+        a.queueLoad - b.queueLoad ||
+        a.stallName.localeCompare(b.stallName)
+      );
+
+    if (availableCounters.length === 0) {
+      return {
+        code: "recovery_required",
+        text: "All counters blocked - restore minimum stock."
+      };
+    }
+
+    const busiestCounter = [...availableCounters].sort((a, b) => b.queueLoad - a.queueLoad)[0];
+    const lightestCounter = availableCounters[0];
+
+    if (
+      busiestCounter &&
+      lightestCounter &&
+      busiestCounter.stallId !== lightestCounter.stallId &&
+      busiestCounter.queueLoad - lightestCounter.queueLoad >= 3
+    ) {
+      return {
+        code: "rebalance",
+        text: `Redirect overflow from ${busiestCounter.stallName} to ${lightestCounter.stallName}.`
+      };
+    }
+
+    const constrainedCounter = stallViews.find(
+      (view) =>
+        view.stateCode === "constrained" &&
+        view.availableRecipeKeys.length > 0 &&
+        view.unavailableLabels.length > 0
+    );
+
+    if (constrainedCounter) {
+      return {
+        code: "limited_menu",
+        text: `${constrainedCounter.stallName} limited menu: ${constrainedCounter.availableLabels.join(" / ")}.`
+      };
+    }
+
+    return {
+      code: "stable",
+      text: "Counters balanced."
+    };
+  }
+
   getQueueLoad(queueBreakdown, stallId) {
     return Number(queueBreakdown?.[stallId] ?? 0);
   }

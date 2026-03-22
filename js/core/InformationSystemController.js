@@ -66,7 +66,15 @@ export default class InformationSystemController {
         ramen_stall: "Open",
         dry_noodle_stall: "Open",
         soup_station: "Open"
-      }
+      },
+      menuAvailability: {
+        ramen_stall: "Unknown",
+        dry_noodle_stall: "Unknown",
+        soup_station: "Unknown"
+      },
+      recommendedCounterAction: "Counters balanced.",
+      continuityStatus: "Stable",
+      continuityRecoveryCount: 0
     };
     this.playerProfile = {
       id: "player_001",
@@ -180,6 +188,8 @@ export default class InformationSystemController {
     const recovered = this.recoverSimulationInventoryFloor();
 
     if (recovered) {
+      this.operationalMetrics.continuityStatus = "Recovery Applied";
+      this.operationalMetrics.continuityRecoveryCount += 1;
       this.persistState();
     }
 
@@ -212,6 +222,54 @@ export default class InformationSystemController {
     });
 
     return snapshot;
+  }
+
+  getMenuAvailabilitySnapshot() {
+    const snapshot = {};
+
+    Object.keys(this.catalog).forEach((stallId) => {
+      const menuView = this.serviceRules.getMenuAvailabilitySnapshot(this.inventory, stallId);
+
+      snapshot[stallId] = menuView.availableLabels.length
+        ? menuView.availableLabels.join(" / ")
+        : "Unavailable";
+    });
+
+    return snapshot;
+  }
+
+  getPreferredRecipeForStall(stallId, preferredRecipeKey = null) {
+    const availableRecipeKeys =
+      this.serviceRules.getAvailableRecipeKeysForStall(this.inventory, stallId);
+
+    if (availableRecipeKeys.length === 0) {
+      return null;
+    }
+
+    if (preferredRecipeKey && availableRecipeKeys.includes(preferredRecipeKey)) {
+      return preferredRecipeKey;
+    }
+
+    return availableRecipeKeys[0];
+  }
+
+  refreshOperationalInsights() {
+    const stallStates = this.getStallStateSnapshot();
+    const menuAvailability = this.getMenuAvailabilitySnapshot();
+    const recommendation = this.serviceRules.buildCounterRecommendation({
+      inventory: this.inventory,
+      queueBreakdown: this.getQueueBreakdownSnapshot()
+    });
+
+    this.operationalMetrics.stallStates = stallStates;
+    this.operationalMetrics.menuAvailability = menuAvailability;
+    this.operationalMetrics.recommendedCounterAction = recommendation.text;
+
+    return {
+      stallStates,
+      menuAvailability,
+      recommendation
+    };
   }
 
   humanizeRuleReason(reason, missingIngredients = []) {
@@ -462,6 +520,12 @@ export default class InformationSystemController {
     const stateRamenEl = document.getElementById("stateRamen");
     const stateDryNoodlesEl = document.getElementById("stateDryNoodles");
     const stateSoupEl = document.getElementById("stateSoup");
+    const menuRamenLiveEl = document.getElementById("menuRamenLive");
+    const menuDryNoodlesLiveEl = document.getElementById("menuDryNoodlesLive");
+    const menuSoupLiveEl = document.getElementById("menuSoupLive");
+    const recommendedCounterActionEl = document.getElementById("recommendedCounterAction");
+    const continuityStatusEl = document.getElementById("continuityStatus");
+    const continuityRecoveryCountEl = document.getElementById("continuityRecoveryCount");
     const statusEl = document.getElementById("systemStatus");
 
     if (liveQueueEl) liveQueueEl.textContent = this.operationalMetrics.liveQueueLength;
@@ -479,14 +543,32 @@ export default class InformationSystemController {
     if (queueDryNoodlesEl) queueDryNoodlesEl.textContent = this.operationalMetrics.queueBreakdown.dry_noodle_stall ?? 0;
     if (queueSoupEl) queueSoupEl.textContent = this.operationalMetrics.queueBreakdown.soup_station ?? 0;
 
-    const stallStates = this.getStallStateSnapshot();
-    this.operationalMetrics.stallStates = stallStates;
+    const {
+      stallStates,
+      menuAvailability,
+      recommendation
+    } = this.refreshOperationalInsights();
 
     if (blockedTransactionsEl) blockedTransactionsEl.textContent = this.operationalMetrics.blockedTransactions;
     if (reroutedTransactionsEl) reroutedTransactionsEl.textContent = this.operationalMetrics.reroutedTransactions;
     if (stateRamenEl) stateRamenEl.textContent = stallStates.ramen_stall;
     if (stateDryNoodlesEl) stateDryNoodlesEl.textContent = stallStates.dry_noodle_stall;
     if (stateSoupEl) stateSoupEl.textContent = stallStates.soup_station;
+    if (menuRamenLiveEl) menuRamenLiveEl.textContent = menuAvailability.ramen_stall;
+    if (menuDryNoodlesLiveEl) menuDryNoodlesLiveEl.textContent = menuAvailability.dry_noodle_stall;
+    if (menuSoupLiveEl) menuSoupLiveEl.textContent = menuAvailability.soup_station;
+
+    if (recommendedCounterActionEl) {
+      recommendedCounterActionEl.textContent = recommendation.text;
+    }
+
+    if (continuityStatusEl) {
+      continuityStatusEl.textContent = this.operationalMetrics.continuityStatus;
+    }
+
+    if (continuityRecoveryCountEl) {
+      continuityRecoveryCountEl.textContent = this.operationalMetrics.continuityRecoveryCount;
+    }
 
     if (statusEl) {
       if (
@@ -643,6 +725,27 @@ export default class InformationSystemController {
     return { ok: true, message: `Bought ${recipe.label}` };
   }
 
+  processPlayerCounterInteraction(servicePoint) {
+    const selectedRecipeKey = this.getPreferredRecipeForStall(
+      servicePoint.stallId,
+      servicePoint.defaultRecipeKey
+    );
+
+    if (!selectedRecipeKey) {
+      this.playerProfile.status = `${servicePoint.label} unavailable`;
+      this.recordBlockedTransaction();
+      this.persistState();
+      this.updateDashboard();
+
+      return { ok: false, message: "Counter unavailable." };
+    }
+
+    return this.processPlayerPurchase({
+      stallId: servicePoint.stallId,
+      recipeKey: selectedRecipeKey
+    });
+  }
+
   renderPlayerProfile() {
     const nameEl = document.getElementById("playerName");
     const balanceEl = document.getElementById("playerBalance");
@@ -754,7 +857,10 @@ export default class InformationSystemController {
   getDssAlert() {
     const alerts = [];
     const restockList = this.getRestockList();
-    const stallStates = this.getStallStateSnapshot();
+    const {
+      stallStates,
+      recommendation
+    } = this.refreshOperationalInsights();
 
     if (restockList.length > 0) {
       const severity =
@@ -788,6 +894,14 @@ export default class InformationSystemController {
 
     if (unavailableStalls.length > 0) {
       alerts.push(`Service unavailable: ${unavailableStalls.join(", ")}`);
+    }
+
+    if (recommendation.code !== "stable") {
+      alerts.push(recommendation.text);
+    }
+
+    if (this.operationalMetrics.continuityStatus === "Recovery Applied") {
+      alerts.push("Continuity recovery applied: minimum ingredient floor restored");
     }
 
     if (this.operationalMetrics.blockedTransactions > 0) {

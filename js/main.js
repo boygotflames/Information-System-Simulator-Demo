@@ -129,10 +129,14 @@ function handlePlayerInteraction() {
       ) || null;
 
   if (nearbyServicePoint) {
-    controller.processPlayerPurchase({
-      stallId: nearbyServicePoint.stallId,
-      recipeKey: nearbyServicePoint.defaultRecipeKey
-    });
+    if (controller.processPlayerCounterInteraction) {
+      controller.processPlayerCounterInteraction(nearbyServicePoint);
+    } else {
+      controller.processPlayerPurchase({
+        stallId: nearbyServicePoint.stallId,
+        recipeKey: nearbyServicePoint.defaultRecipeKey
+      });
+    }
     return;
   }
 
