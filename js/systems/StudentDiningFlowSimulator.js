@@ -264,10 +264,7 @@ export default class StudentDiningFlowSimulator {
   spawnStudent() {
     if (this.students.length >= this.maxStudents) return;
 
-    const scenario = this.controller.createNpcServiceScenario
-      ? this.controller.createNpcServiceScenario()
-      : this.controller.createRandomTransactionScenario();
-    if (!scenario) return;
+    const scenario = this.controller.createRandomTransactionScenario();
     const identity = generateStudentIdentity();
     const servicePoint = this.getServicePointForStall(scenario.stallId);
 

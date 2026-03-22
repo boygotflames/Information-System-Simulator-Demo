@@ -84,6 +84,8 @@ export default class InformationSystemController {
     if (savedState) {
       this.hydrateState(savedState);
     }
+
+    this.ensureOperationalContinuity();
   }
 
   hydrateState(savedState) {
@@ -144,6 +146,46 @@ export default class InformationSystemController {
     });
   }
 
+  hasAnyFulfillableMenu() {
+    return Object.keys(this.catalog).some(
+      (stallId) => this.serviceRules.getAvailableRecipeKeysForStall(this.inventory, stallId).length > 0
+    );
+  }
+
+  recoverSimulationInventoryFloor() {
+    const minimumInventory = {
+      noodles: 12,
+      broth: 10,
+      eggs: 10,
+      scallions: 18
+    };
+
+    let changed = false;
+
+    Object.entries(minimumInventory).forEach(([ingredient, minimumAmount]) => {
+      if ((this.inventory[ingredient] ?? 0) < minimumAmount) {
+        this.inventory[ingredient] = minimumAmount;
+        changed = true;
+      }
+    });
+
+    return changed;
+  }
+
+  ensureOperationalContinuity() {
+    if (this.hasAnyFulfillableMenu()) {
+      return false;
+    }
+
+    const recovered = this.recoverSimulationInventoryFloor();
+
+    if (recovered) {
+      this.persistState();
+    }
+
+    return recovered;
+  }
+
   recordBlockedTransaction() {
     this.operationalMetrics.blockedTransactions += 1;
   }
@@ -195,6 +237,8 @@ export default class InformationSystemController {
   }
 
   createNpcServiceScenario() {
+    this.ensureOperationalContinuity();
+
     const baseScenario = this.createRandomTransactionScenario();
 
     const plannedScenario = this.serviceRules.planNpcScenario({
@@ -220,6 +264,8 @@ export default class InformationSystemController {
   }
 
   resolveNpcServiceAttempt(scenario) {
+    this.ensureOperationalContinuity();
+
     const resolution = this.serviceRules.resolveNpcServiceAttempt({
       inventory: this.inventory,
       queueBreakdown: this.getQueueBreakdownSnapshot(),
@@ -262,6 +308,8 @@ export default class InformationSystemController {
   }
 
   simulateOperationalTransaction() {
+    this.ensureOperationalContinuity();
+
     const scenario = this.createNpcServiceScenario();
 
     if (!scenario) {
