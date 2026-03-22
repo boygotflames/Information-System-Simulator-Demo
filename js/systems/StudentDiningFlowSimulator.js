@@ -261,6 +261,99 @@ export default class StudentDiningFlowSimulator {
     return activeStudents <= Math.floor(this.maxStudents * 0.7);
   }
 
+  applyTimingProfile(student, stallId, { resetCurrentStallWait = false } = {}) {
+    const timingProfile = this.controller.createNpcTimingProfile
+      ? this.controller.createNpcTimingProfile(stallId)
+      : {
+          serviceDuration: 1.2,
+          patienceDuration: 9,
+          abandonmentDuration: 15,
+          rerouteCheckInterval: 1.6,
+          rerouteMinAdvantage: 2,
+          maxReroutes: 1,
+          abandonAtGlobalQueue: 9
+        };
+
+    student.serviceDuration = timingProfile.serviceDuration;
+    student.patienceDuration = timingProfile.patienceDuration;
+    student.abandonmentDuration = timingProfile.abandonmentDuration;
+    student.rerouteCheckInterval = timingProfile.rerouteCheckInterval;
+    student.rerouteMinAdvantage = timingProfile.rerouteMinAdvantage;
+    student.maxReroutes = timingProfile.maxReroutes;
+    student.abandonAtGlobalQueue = timingProfile.abandonAtGlobalQueue;
+    student.queueDecisionTimer = 0;
+
+    if (resetCurrentStallWait) {
+      student.currentStallWaitTime = 0;
+    }
+  }
+
+  updateQueuePatience(student, deltaTime) {
+    if (student.state !== "queueing") {
+      return;
+    }
+
+    student.totalQueueTime += deltaTime;
+    student.currentStallWaitTime += deltaTime;
+    student.queueDecisionTimer += deltaTime;
+
+    if (student.queueDecisionTimer < student.rerouteCheckInterval) {
+      return;
+    }
+
+    student.queueDecisionTimer = 0;
+
+    const decision = this.controller.resolveNpcQueuePatience
+      ? this.controller.resolveNpcQueuePatience({
+          stallId: student.scenario.stallId,
+          recipeKey: student.scenario.recipeKey,
+          totalQueueTime: student.totalQueueTime,
+          currentStallWaitTime: student.currentStallWaitTime,
+          rerouteCount: student.rerouteCount,
+          excludedStallIds: student.excludedStallIds,
+          patienceDuration: student.patienceDuration,
+          abandonmentDuration: student.abandonmentDuration,
+          rerouteMinAdvantage: student.rerouteMinAdvantage,
+          maxReroutes: student.maxReroutes,
+          abandonAtGlobalQueue: student.abandonAtGlobalQueue
+        })
+      : { action: "wait" };
+
+    if (!decision || decision.action === "wait") {
+      return;
+    }
+
+    if (decision.action === "reroute") {
+      const previousStallId = student.scenario.stallId;
+      const reroutedServicePoint = this.getServicePointForStall(decision.stallId);
+
+      student.scenario = {
+        ...student.scenario,
+        stallId: decision.stallId,
+        recipeKey: decision.recipeKey
+      };
+
+      student.servicePointId = reroutedServicePoint.id;
+      student.waitingTarget = this.getHoldingTargetForServicePoint(reroutedServicePoint);
+      student.queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
+      student.rerouteCount += 1;
+      student.excludedStallIds = Array.from(
+        new Set([...student.excludedStallIds, previousStallId])
+      );
+
+      this.applyTimingProfile(student, decision.stallId, {
+        resetCurrentStallWait: true
+      });
+
+      return;
+    }
+
+    if (decision.action === "abandon") {
+      this.setRoute(student, this.pathRouter.buildExitPath());
+      student.state = "exiting";
+    }
+  }
+
   spawnStudent() {
     if (this.students.length >= this.maxStudents) return;
 
@@ -273,7 +366,7 @@ export default class StudentDiningFlowSimulator {
 
     const queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
 
-    this.students.push({
+    const student = {
       id: `sim_student_${this.nextStudentId++}`,
       x: 46 + Math.random() * 26,
       y: servicePoint.queueY + 16 + Math.random() * 26,
@@ -296,8 +389,26 @@ export default class StudentDiningFlowSimulator {
       waitingTarget: this.getHoldingTargetForServicePoint(servicePoint),
       route: [],
       routeIndex: 0,
+      totalQueueTime: 0,
+      currentStallWaitTime: 0,
+      queueDecisionTimer: 0,
+      rerouteCount: 0,
+      excludedStallIds: [],
+      serviceDuration: 1.2,
+      patienceDuration: 9,
+      abandonmentDuration: 15,
+      rerouteCheckInterval: 1.6,
+      rerouteMinAdvantage: 2,
+      maxReroutes: 1,
+      abandonAtGlobalQueue: 9,
       color: identity.originType === "domestic_pinyin" ? "#60a5fa" : "#f87171"
+    };
+
+    this.applyTimingProfile(student, scenario.stallId, {
+      resetCurrentStallWait: true
     });
+
+    this.students.push(student);
   }
 
   update(deltaTime, { playerOccupiedSeatId = null } = {}) {
@@ -317,6 +428,10 @@ export default class StudentDiningFlowSimulator {
 
       this.nextSpawnInterval = this.rollSpawnInterval();
     }
+
+    this.students.forEach((student) => {
+      this.updateQueuePatience(student, deltaTime);
+    });
 
     this.servicePoints.forEach((servicePoint) => {
       const queueingStudents = this.students.filter(
@@ -370,7 +485,7 @@ export default class StudentDiningFlowSimulator {
       if (student.state === "paying") {
         student.payTimer += deltaTime;
 
-        if (student.payTimer >= 1.2 && !student.hasProcessedTransaction) {
+        if (student.payTimer >= student.serviceDuration && !student.hasProcessedTransaction) {
           const serviceResolution = this.controller.resolveNpcServiceAttempt
             ? this.controller.resolveNpcServiceAttempt(student.scenario)
             : {
@@ -385,16 +500,31 @@ export default class StudentDiningFlowSimulator {
             return;
           }
 
-          student.scenario = serviceResolution.scenario;
-
           if (serviceResolution.action === "reroute") {
-            const reroutedServicePoint = this.getServicePointForStall(student.scenario.stallId);
+            const previousStallId = student.scenario.stallId;
+            const reroutedServicePoint = this.getServicePointForStall(
+              serviceResolution.scenario.stallId
+            );
+
+            student.scenario = serviceResolution.scenario;
             student.servicePointId = reroutedServicePoint.id;
             student.waitingTarget = this.getHoldingTargetForServicePoint(reroutedServicePoint);
+            student.queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
+            student.rerouteCount += 1;
+            student.excludedStallIds = Array.from(
+              new Set([...student.excludedStallIds, previousStallId])
+            );
             student.payTimer = 0;
             student.state = "queueing";
+
+            this.applyTimingProfile(student, student.scenario.stallId, {
+              resetCurrentStallWait: true
+            });
+
             return;
           }
+
+          student.scenario = serviceResolution.scenario;
 
           const transaction = this.controller.processTransaction({
             ...student.scenario,

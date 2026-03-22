@@ -2,6 +2,13 @@ import { STALL_CATALOG } from "../data/stallCatalog.js";
 import { RECIPE_BOOK } from "../data/recipeBook.js";
 import { saveState, loadState } from "./LocalStateRepository.js";
 import ServiceRulesEngine from "./ServiceRulesEngine.js";
+import {
+  COUNTER_BEHAVIOR_BY_STALL,
+  getCounterBehaviorProfile,
+  rollCounterServiceTime,
+  rollQueuePatienceWindow,
+  rollQueueAbandonWindow
+} from "./CounterBehaviorProfile.js";
 
 export default class InformationSystemController {
   constructor() {
@@ -62,6 +69,7 @@ export default class InformationSystemController {
       },
       blockedTransactions: 0,
       reroutedTransactions: 0,
+      abandonedTransactions: 0,
       stallStates: {
         ramen_stall: "Open",
         dry_noodle_stall: "Open",
@@ -202,6 +210,94 @@ export default class InformationSystemController {
 
   recordReroutedTransaction() {
     this.operationalMetrics.reroutedTransactions += 1;
+  }
+
+  recordAbandonedTransaction() {
+    this.operationalMetrics.abandonedTransactions += 1;
+  }
+
+  createNpcTimingProfile(stallId) {
+    const behavior = getCounterBehaviorProfile(stallId);
+
+    return {
+      serviceDuration: rollCounterServiceTime(stallId),
+      patienceDuration: rollQueuePatienceWindow(stallId),
+      abandonmentDuration: rollQueueAbandonWindow(stallId),
+      rerouteCheckInterval: behavior.rerouteCheckInterval,
+      rerouteMinAdvantage: behavior.rerouteMinAdvantage,
+      maxReroutes: behavior.maxReroutes,
+      abandonAtGlobalQueue: behavior.abandonAtGlobalQueue,
+      servicePaceLabel: behavior.servicePaceLabel
+    };
+  }
+
+  resolveNpcQueuePatience({
+    stallId,
+    recipeKey,
+    totalQueueTime = 0,
+    currentStallWaitTime = 0,
+    rerouteCount = 0,
+    excludedStallIds = [],
+    patienceDuration = 9,
+    abandonmentDuration = 15,
+    rerouteMinAdvantage = 2,
+    maxReroutes = 1,
+    abandonAtGlobalQueue = 9
+  } = {}) {
+    this.ensureOperationalContinuity();
+
+    const queueBreakdown = this.getQueueBreakdownSnapshot();
+    const stallState = this.serviceRules.getStallState({
+      inventory: this.inventory,
+      stallId,
+      queueBreakdown
+    });
+
+    const shouldTryReroute =
+      stallState.code === "unavailable" ||
+      currentStallWaitTime >= patienceDuration;
+
+    if (shouldTryReroute && rerouteCount < maxReroutes) {
+      const alternative = this.serviceRules.findStrategicAlternative({
+        inventory: this.inventory,
+        queueBreakdown,
+        currentStallId: stallId,
+        excludedStallIds,
+        minQueueAdvantage: stallState.code === "unavailable" ? 0 : rerouteMinAdvantage
+      });
+
+      if (alternative) {
+        this.recordReroutedTransaction();
+        this.persistState();
+        this.updateDashboard();
+
+        return {
+          action: "reroute",
+          stallId: alternative.stallId,
+          recipeKey: alternative.recipeKey
+        };
+      }
+    }
+
+    const shouldAbandon =
+      totalQueueTime >= abandonmentDuration ||
+      (currentStallWaitTime >= patienceDuration &&
+        this.operationalMetrics.liveQueueLength >= abandonAtGlobalQueue) ||
+      (stallState.code === "unavailable" && rerouteCount >= maxReroutes);
+
+    if (shouldAbandon) {
+      this.recordAbandonedTransaction();
+      this.persistState();
+      this.updateDashboard();
+
+      return {
+        action: "abandon"
+      };
+    }
+
+    return {
+      action: "wait"
+    };
   }
 
   getQueueBreakdownSnapshot() {
@@ -517,9 +613,13 @@ export default class InformationSystemController {
     const queueSoupEl = document.getElementById("queueSoup");
     const blockedTransactionsEl = document.getElementById("blockedTransactions");
     const reroutedTransactionsEl = document.getElementById("reroutedTransactions");
+    const abandonedTransactionsEl = document.getElementById("abandonedTransactions");
     const stateRamenEl = document.getElementById("stateRamen");
     const stateDryNoodlesEl = document.getElementById("stateDryNoodles");
     const stateSoupEl = document.getElementById("stateSoup");
+    const paceRamenEl = document.getElementById("paceRamen");
+    const paceDryNoodlesEl = document.getElementById("paceDryNoodles");
+    const paceSoupEl = document.getElementById("paceSoup");
     const menuRamenLiveEl = document.getElementById("menuRamenLive");
     const menuDryNoodlesLiveEl = document.getElementById("menuDryNoodlesLive");
     const menuSoupLiveEl = document.getElementById("menuSoupLive");
@@ -551,9 +651,21 @@ export default class InformationSystemController {
 
     if (blockedTransactionsEl) blockedTransactionsEl.textContent = this.operationalMetrics.blockedTransactions;
     if (reroutedTransactionsEl) reroutedTransactionsEl.textContent = this.operationalMetrics.reroutedTransactions;
+    if (abandonedTransactionsEl) {
+      abandonedTransactionsEl.textContent = this.operationalMetrics.abandonedTransactions;
+    }
     if (stateRamenEl) stateRamenEl.textContent = stallStates.ramen_stall;
     if (stateDryNoodlesEl) stateDryNoodlesEl.textContent = stallStates.dry_noodle_stall;
     if (stateSoupEl) stateSoupEl.textContent = stallStates.soup_station;
+    if (paceRamenEl) {
+      paceRamenEl.textContent = COUNTER_BEHAVIOR_BY_STALL.ramen_stall.servicePaceLabel;
+    }
+    if (paceDryNoodlesEl) {
+      paceDryNoodlesEl.textContent = COUNTER_BEHAVIOR_BY_STALL.dry_noodle_stall.servicePaceLabel;
+    }
+    if (paceSoupEl) {
+      paceSoupEl.textContent = COUNTER_BEHAVIOR_BY_STALL.soup_station.servicePaceLabel;
+    }
     if (menuRamenLiveEl) menuRamenLiveEl.textContent = menuAvailability.ramen_stall;
     if (menuDryNoodlesLiveEl) menuDryNoodlesLiveEl.textContent = menuAvailability.dry_noodle_stall;
     if (menuSoupLiveEl) menuSoupLiveEl.textContent = menuAvailability.soup_station;
@@ -906,6 +1018,10 @@ export default class InformationSystemController {
 
     if (this.operationalMetrics.blockedTransactions > 0) {
       alerts.push(`Blocked orders observed: ${this.operationalMetrics.blockedTransactions}`);
+    }
+
+    if (this.operationalMetrics.abandonedTransactions > 0) {
+      alerts.push(`Queue abandonment observed: ${this.operationalMetrics.abandonedTransactions}`);
     }
 
     return alerts.length ? alerts.join(" | ") : "No alert";

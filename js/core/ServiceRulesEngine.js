@@ -237,20 +237,45 @@ export default class ServiceRulesEngine {
     };
   }
 
-  findQueueReliefAlternative({ inventory, queueBreakdown, preferredStallId }) {
-    const currentQueue = this.getQueueLoad(queueBreakdown, preferredStallId);
-    if (currentQueue < 5) return null;
+  findStrategicAlternative({
+    inventory,
+    queueBreakdown,
+    currentStallId,
+    excludedStallIds = [],
+    minQueueAdvantage = 2
+  }) {
+    const currentQueue = this.getQueueLoad(queueBreakdown, currentStallId);
 
     const alternative = this.findLeastLoadedAlternative({
       inventory,
       queueBreakdown,
-      excludedStallIds: [preferredStallId]
+      excludedStallIds: [currentStallId, ...excludedStallIds]
     });
 
-    if (!alternative) return null;
-    if (alternative.queueLoad + 2 > currentQueue) return null;
+    if (!alternative) {
+      return null;
+    }
+
+    if (currentQueue - alternative.queueLoad < minQueueAdvantage) {
+      return null;
+    }
 
     return alternative;
+  }
+
+  findQueueReliefAlternative({ inventory, queueBreakdown, preferredStallId }) {
+    const currentQueue = this.getQueueLoad(queueBreakdown, preferredStallId);
+
+    if (currentQueue < 5) {
+      return null;
+    }
+
+    return this.findStrategicAlternative({
+      inventory,
+      queueBreakdown,
+      currentStallId: preferredStallId,
+      minQueueAdvantage: 2
+    });
   }
 
   planNpcScenario({ inventory, queueBreakdown, stallId, recipeKey }) {
