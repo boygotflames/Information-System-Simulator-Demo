@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>University Canteen IS Game</title>
+  <link rel="stylesheet" href="css/style.css?v=drawer-fix-2" />
+</head>
+<body>
+  <div class="dashboard-scrim" id="dashboardScrim"></div>
+
+  <div class="app-shell">
+    <main class="game-panel">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button
+            id="dashboardToggleBtn"
+            class="icon-btn"
+            aria-label="Toggle information systems dashboard"
+            aria-controls="dashboardPanel"
+            aria-expanded="false"
+          >
+            ☰
+          </button>
+
+          <div class="topbar-copy">
+            <h1>University Canteen Information Systems Game</h1>
+            <p>Observe operations, inspect objects, and learn how a canteen Information System behaves in real time.</p>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="simulateTransactionBtn" class="action-btn">Simulate TPS</button>
+          <button id="managerModeBtn" class="action-btn">Manager Mode</button>
+        </div>
+      </header>
+
+      <section class="canvas-wrapper">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+        <div class="canvas-hud">
+          <div class="hud-chip">WASD / Arrow Keys: Move</div>
+          <div class="hud-chip">Click: Inspect Object</div>
+          <div class="hud-chip">E: Interact</div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="dashboard-panel" id="dashboardPanel" aria-hidden="true">
+      <div class="dashboard-header">
+        <div>
+          <h2>Information Systems Dashboard</h2>
+          <p id="systemStatus">System Status: Ready</p>
+        </div>
+
+        <button id="dashboardCloseBtn" class="icon-btn" aria-label="Close dashboard">×</button>
+      </div>
+
+      <div class="dashboard-body">
+        <section class="dashboard-section section-full">
+          <h3>Player Student Profile</h3>
+          <div class="card stack">
+            <p><strong>Name:</strong> <span id="playerName">Player</span></p>
+            <p><strong>Balance:</strong> ¥<span id="playerBalance">100.00</span></p>
+            <p><strong>Current Meal:</strong> <span id="playerMeal">None</span></p>
+            <p><strong>Status:</strong> <span id="playerStatus">Exploring</span></p>
+            <p><strong>Total Purchases:</strong> <span id="playerTotalPurchases">0</span></p>
+            <p><strong>Total Spent:</strong> ¥<span id="playerTotalSpent">0.00</span></p>
+            <p><strong>Seat:</strong> <span id="playerSeat">None</span></p>
+          </div>
+        </section>
+
+        <section class="dashboard-section">
+          <h3>Selected Object</h3>
+          <div class="card stack">
+            <p><strong>Name:</strong> <span id="selectedName">None</span></p>
+            <p><strong>Type:</strong> <span id="selectedType">None</span></p>
+            <p><strong>IS Role:</strong> <span id="selectedRole">None</span></p>
+            <p id="selectedDescription">
+              Click an object in the canteen to see how it fits into an information system.
+            </p>
+          </div>
+        </section>
+
+        <section class="dashboard-section">
+          <h3>Inventory</h3>
+          <div class="card stack">
+            <p>Noodles: <span id="inventoryNoodles">0</span></p>
+            <p>Broth: <span id="inventoryBroth">0</span></p>
+            <p>Eggs: <span id="inventoryEggs">0</span></p>
+            <p>Scallions: <span id="inventoryScallions">0</span></p>
+          </div>
+        </section>
+
+        <section class="dashboard-section">
+          <h3>5 Core IS Components</h3>
+          <div class="grid-cards">
+            <div class="mini-card">
+              <span class="label">Hardware</span>
+              <strong id="hardwareCount">0</strong>
+            </div>
+            <div class="mini-card">
+              <span class="label">Software</span>
+              <strong id="softwareCount">0</strong>
+            </div>
+            <div class="mini-card">
+              <span class="label">Data</span>
+              <strong id="dataCount">0</strong>
+            </div>
+            <div class="mini-card">
+              <span class="label">People</span>
+              <strong id="peopleCount">0</strong>
+            </div>
+            <div class="mini-card">
+              <span class="label">Processes</span>
+              <strong id="processCount">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard-section">
+          <h3>System Types</h3>
+          <div class="card stack">
+            <p><strong>TPS Transactions:</strong> <span id="tpsCount">0</span></p>
+            <p><strong>MIS Daily Sales:</strong> ¥<span id="misSales">0.00</span></p>
+            <p><strong>DSS Alert:</strong> <span id="dssAlert">No alert</span></p>
+            <p><strong>ESS Summary:</strong> <span id="essSummary">Waiting for activity</span></p>
+            <p><strong>KMS Recipe Access:</strong> <span id="kmsRecipe">No recipe selected</span></p>
+          </div>
+        </section>
+
+        <section class="dashboard-section section-full">
+          <h3>Manager Analytics</h3>
+          <div class="card stack">
+            <p><strong>Top Stall:</strong> <span id="misTopStall">No sales yet</span></p>
+            <p><strong>Restock Queue:</strong> <span id="dssRestockList">No restock needed</span></p>
+            <p><strong>ESS Efficiency Score:</strong> <span id="essEfficiencyScore">0/100</span></p>
+            <p><strong>KMS Last Recipe:</strong> <span id="kmsLastRecipe">No recipe selected</span></p>
+            <p><strong>Live Queue:</strong> <span id="liveQueueLength">0</span></p>
+            <p><strong>Peak Queue:</strong> <span id="peakQueueLength">0</span></p>
+            <p><strong>Demand Pressure:</strong> <span id="demandPressure">Normal</span></p>
+            <p><strong>Auto TPS:</strong> <span id="autoTransactionCount">0</span></p>
+            <p><strong>Ramen Queue:</strong> <span id="queueRamen">0</span></p>
+            <p><strong>Dry Noodle Queue:</strong> <span id="queueDryNoodles">0</span></p>
+            <p><strong>Soup Queue:</strong> <span id="queueSoup">0</span></p>
+            <p><strong>Ramen State:</strong> <span id="stateRamen">Open</span></p>
+            <p><strong>Dry Noodle State:</strong> <span id="stateDryNoodles">Open</span></p>
+            <p><strong>Soup State:</strong> <span id="stateSoup">Open</span></p>
+            <p><strong>Blocked Orders:</strong> <span id="blockedTransactions">0</span></p>
+            <p><strong>Rerouted Orders:</strong> <span id="reroutedTransactions">0</span></p>
+            <p><strong>Dining Seats Used:</strong> <span id="occupiedDiningSeats">0</span>/<span id="totalDiningSeats">48</span></p>
+            <p><strong>Students Dining:</strong> <span id="seatedStudentCount">0</span></p>
+            <p><strong>Seating Pressure:</strong> <span id="seatingPressure">Low</span></p>
+            <p><strong>Tray Return Line:</strong> <span id="trayReturnCount">0</span></p>
+            <p><strong>Washed Trays:</strong> <span id="washedTrayCount">0</span></p>
+          </div>
+        </section>
+
+        <section class="dashboard-section section-full">
+          <h3>Transaction Feed</h3>
+          <div class="card feed" id="transactionFeed">
+            <p class="feed-placeholder">No transactions yet.</p>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
