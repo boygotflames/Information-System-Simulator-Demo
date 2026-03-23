@@ -12,6 +12,7 @@ import { initDashboardToggle } from "./ui/dashboardToggle.js";
 const simulateBtn = document.getElementById("simulateTransactionBtn");
 const managerModeBtn = document.getElementById("managerModeBtn");
 const archiveReportBtn = document.getElementById("archiveReportBtn");
+const planNextDayBtn = document.getElementById("planNextDayBtn");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -258,6 +259,21 @@ archiveReportBtn?.addEventListener("click", () => {
     description: archiveResult?.message
       ? `Operational reporting archive. Last archive action: ${archiveResult.message}`
       : "Operational reporting archive for daily executive summaries."
+  });
+});
+
+planNextDayBtn?.addEventListener("click", () => {
+  const planResult = controller.generateNextDayOperationalPlan
+    ? controller.generateNextDayOperationalPlan()
+    : null;
+
+  controller.inspectObject({
+    name: "Operations Planning Console",
+    type: "Planning Control",
+    isRole: "MIS / DSS / ESS / Planning",
+    description: planResult?.message
+      ? `Next-day planning applied. ${planResult.message} Priority: ${planResult.plan?.topPriority || "Keep counters balanced."}`
+      : "Operational planning console for forecasting and next-day control."
   });
 });
 

@@ -261,6 +261,30 @@ export default class StudentDiningFlowSimulator {
     return activeStudents <= Math.floor(this.maxStudents * 0.7);
   }
 
+  syncRuntimeDemandProfile() {
+    const runtimeProfile = this.controller.getRuntimeDemandProfile
+      ? this.controller.getRuntimeDemandProfile()
+      : null;
+
+    if (!runtimeProfile) {
+      return;
+    }
+
+    const nextMin = Math.max(0.8, Number(runtimeProfile.spawnIntervalMin ?? this.spawnIntervalMin));
+    const nextMax = Math.max(nextMin + 0.2, Number(runtimeProfile.spawnIntervalMax ?? this.spawnIntervalMax));
+    const nextBurst = Math.max(0, Math.min(0.6, Number(runtimeProfile.burstChance ?? this.burstChance)));
+    const nextMaxStudents = Math.max(4, Math.round(Number(runtimeProfile.maxStudents ?? this.maxStudents)));
+
+    this.spawnIntervalMin = nextMin;
+    this.spawnIntervalMax = nextMax;
+    this.burstChance = nextBurst;
+    this.maxStudents = nextMaxStudents;
+
+    if (this.nextSpawnInterval < this.spawnIntervalMin || this.nextSpawnInterval > this.spawnIntervalMax) {
+      this.nextSpawnInterval = this.rollSpawnInterval();
+    }
+  }
+
   applyTimingProfile(student, stallId, { resetCurrentStallWait = false } = {}) {
     const timingProfile = this.controller.createNpcTimingProfile
       ? this.controller.createNpcTimingProfile(stallId)
@@ -349,7 +373,10 @@ export default class StudentDiningFlowSimulator {
     }
 
     if (decision.action === "abandon") {
-      this.setRoute(student, this.pathRouter.buildExitPath());
+      this.setRoute(student, this.pathRouter.buildExitPath({
+        x: student.x,
+        y: student.y
+      }));
       student.state = "exiting";
     }
   }
@@ -412,6 +439,8 @@ export default class StudentDiningFlowSimulator {
   }
 
   update(deltaTime, { playerOccupiedSeatId = null } = {}) {
+    this.syncRuntimeDemandProfile();
+
     this.spawnTimer += deltaTime;
 
     if (this.spawnTimer >= this.nextSpawnInterval) {
@@ -495,7 +524,10 @@ export default class StudentDiningFlowSimulator {
               };
 
           if (!serviceResolution.ok) {
-            this.setRoute(student, this.pathRouter.buildExitPath());
+            this.setRoute(student, this.pathRouter.buildExitPath({
+              x: student.x,
+              y: student.y
+            }));
             student.state = "exiting";
             return;
           }
@@ -532,7 +564,10 @@ export default class StudentDiningFlowSimulator {
           });
 
           if (!transaction) {
-            this.setRoute(student, this.pathRouter.buildExitPath());
+            this.setRoute(student, this.pathRouter.buildExitPath({
+              x: student.x,
+              y: student.y
+            }));
             student.state = "exiting";
             return;
           }
@@ -545,7 +580,10 @@ export default class StudentDiningFlowSimulator {
             this.occupySeat(seat.id, student.id);
             student.seatId = seat.id;
             student.seatLabel = seat.label;
-            this.setRoute(student, this.pathRouter.buildPathToSeat(seat));
+            this.setRoute(student, this.pathRouter.buildPathToSeat(seat, {
+              x: student.x,
+              y: student.y
+            }));
             student.state = "moving_to_seat";
           } else {
             student.state = "waiting_for_seat";
@@ -575,7 +613,10 @@ export default class StudentDiningFlowSimulator {
           this.occupySeat(seat.id, student.id);
           student.seatId = seat.id;
           student.seatLabel = seat.label;
-          this.setRoute(student, this.pathRouter.buildPathToSeat(seat));
+          this.setRoute(student, this.pathRouter.buildPathToSeat(seat, {
+            x: student.x,
+            y: student.y
+          }));
           student.state = "moving_to_seat";
         }
 
@@ -630,7 +671,10 @@ export default class StudentDiningFlowSimulator {
 
           student.seatId = null;
           student.seatLabel = null;
-          this.setRoute(student, this.pathRouter.buildExitPath());
+          this.setRoute(student, this.pathRouter.buildExitPath({
+            x: student.x,
+            y: student.y
+          }));
           student.state = "exiting";
         }
 
@@ -716,8 +760,13 @@ export default class StudentDiningFlowSimulator {
       }
 
       if (student.state === "eating") {
+        const seat = this.getSeatById(student.seatId);
+        const mealY = seat?.side === "top"
+          ? student.y + student.size + 2
+          : student.y - 6;
+
         ctx.fillStyle = "#f8fafc";
-        ctx.fillRect(student.x + 5, student.y - 5, 8, 4);
+        ctx.fillRect(student.x + 5, mealY, 8, 4);
       }
     });
 

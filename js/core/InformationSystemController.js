@@ -4,6 +4,7 @@ import { saveState, loadState } from "./LocalStateRepository.js";
 import ServiceRulesEngine from "./ServiceRulesEngine.js";
 import RestockEngine from "./RestockEngine.js";
 import ExecutiveReportEngine from "./ExecutiveReportEngine.js";
+import OperationalPlanningEngine from "./OperationalPlanningEngine.js";
 import {
   COUNTER_BEHAVIOR_BY_STALL,
   getCounterBehaviorProfile,
@@ -22,6 +23,7 @@ export default class InformationSystemController {
     });
     this.restockEngine = new RestockEngine();
     this.reportEngine = new ExecutiveReportEngine();
+    this.planningEngine = new OperationalPlanningEngine();
 
     this.transactions = [];
     this.dailySales = 0;
@@ -116,6 +118,24 @@ export default class InformationSystemController {
       archivedReports: [],
       latestReportSummary: "No archived reports yet."
     };
+    this.planningState = {
+      activePlanCode: "baseline",
+      activePlanLabel: "Baseline Plan",
+      planPriority: "Keep counters balanced and watch queue growth.",
+      planDemandProfile: "Arrival 2.6-4.1s | Ramen Stall 44% | Dry Noodle Stall 33% | Soup Station 23%",
+      lastPlanGeneratedAt: "No plan generated yet.",
+      runtimeProfile: {
+        spawnIntervalMin: 2.6,
+        spawnIntervalMax: 4.1,
+        burstChance: 0.16,
+        maxStudents: 14,
+        stallDemandWeights: {
+          ramen_stall: 0.44,
+          dry_noodle_stall: 0.33,
+          soup_station: 0.23
+        }
+      }
+    };
 
     const savedState = loadState();
     if (savedState) {
@@ -184,6 +204,21 @@ export default class InformationSystemController {
         ...savedState.reportingState
       };
     }
+
+    if (savedState.planningState) {
+      this.planningState = {
+        ...this.planningState,
+        ...savedState.planningState,
+        runtimeProfile: {
+          ...this.planningState.runtimeProfile,
+          ...(savedState.planningState.runtimeProfile || {}),
+          stallDemandWeights: {
+            ...this.planningState.runtimeProfile.stallDemandWeights,
+            ...(savedState.planningState.runtimeProfile?.stallDemandWeights || {})
+          }
+        }
+      };
+    }
   }
 
   persistState() {
@@ -196,7 +231,8 @@ export default class InformationSystemController {
       operationalMetrics: this.operationalMetrics,
       playerProfile: this.playerProfile,
       restockState: this.restockState,
-      reportingState: this.reportingState
+      reportingState: this.reportingState,
+      planningState: this.planningState
     });
   }
 
@@ -450,6 +486,90 @@ export default class InformationSystemController {
         `
       )
       .join("");
+  }
+
+  getRuntimeDemandProfile() {
+    return this.planningState.runtimeProfile;
+  }
+
+  pickWeightedStallId(weights = {}) {
+    const entries = Object.entries(weights)
+      .map(([stallId, value]) => [stallId, Math.max(0, Number(value || 0))])
+      .filter(([, value]) => value > 0);
+
+    if (entries.length === 0) {
+      const stallIds = Object.keys(this.catalog);
+      return stallIds[Math.floor(Math.random() * stallIds.length)];
+    }
+
+    const total = entries.reduce((sum, [, value]) => sum + value, 0);
+    let roll = Math.random() * total;
+
+    for (const [stallId, value] of entries) {
+      roll -= value;
+      if (roll <= 0) {
+        return stallId;
+      }
+    }
+
+    return entries[entries.length - 1][0];
+  }
+
+  generateNextDayOperationalPlan() {
+    const plan = this.planningEngine.buildPlan({
+      stalls: this.stalls,
+      operationalMetrics: this.operationalMetrics,
+      restockState: this.restockState,
+      reportingState: this.reportingState,
+      efficiencyScore: this.getEfficiencyScore()
+    });
+
+    this.planningState = {
+      activePlanCode: plan.planCode,
+      activePlanLabel: plan.planLabel,
+      planPriority: plan.topPriority,
+      planDemandProfile: plan.demandProfileText,
+      lastPlanGeneratedAt: plan.generatedAt,
+      runtimeProfile: {
+        ...plan.runtimeProfile,
+        stallDemandWeights: {
+          ...plan.runtimeProfile.stallDemandWeights
+        }
+      }
+    };
+
+    this.restockState.lastManagerAction = `Applied ${plan.planLabel}.`;
+    this.persistState();
+    this.updateDashboard();
+
+    return {
+      ok: true,
+      message: `Applied ${plan.planLabel}.`,
+      plan
+    };
+  }
+
+  updatePlanningDom() {
+    const activePlanLabelEl = document.getElementById("activePlanLabel");
+    const planPriorityEl = document.getElementById("planPriority");
+    const planDemandProfileEl = document.getElementById("planDemandProfile");
+    const lastPlanGeneratedAtEl = document.getElementById("lastPlanGeneratedAt");
+
+    if (activePlanLabelEl) {
+      activePlanLabelEl.textContent = this.planningState.activePlanLabel;
+    }
+
+    if (planPriorityEl) {
+      planPriorityEl.textContent = this.planningState.planPriority;
+    }
+
+    if (planDemandProfileEl) {
+      planDemandProfileEl.textContent = this.planningState.planDemandProfile;
+    }
+
+    if (lastPlanGeneratedAtEl) {
+      lastPlanGeneratedAtEl.textContent = this.planningState.lastPlanGeneratedAt;
+    }
   }
 
   recordBlockedTransaction() {
@@ -728,8 +848,15 @@ export default class InformationSystemController {
   }
 
   createRandomTransactionScenario() {
-    const stallIds = Object.keys(this.catalog);
-    const stallId = stallIds[Math.floor(Math.random() * stallIds.length)];
+    const runtimeProfile = this.getRuntimeDemandProfile();
+    const weightedStallId = this.pickWeightedStallId(
+      runtimeProfile?.stallDemandWeights || {}
+    );
+
+    const stallId = this.catalog[weightedStallId]
+      ? weightedStallId
+      : Object.keys(this.catalog)[Math.floor(Math.random() * Object.keys(this.catalog).length)];
+
     const stall = this.catalog[stallId];
     const recipeKey = stall.menu[Math.floor(Math.random() * stall.menu.length)];
 
@@ -1424,6 +1551,7 @@ export default class InformationSystemController {
     this.updateInventoryDom();
     this.updateTransactionFeed();
     this.updateReportArchiveDom();
+    this.updatePlanningDom();
     this.renderOperationalMetrics();
     this.renderPlayerProfile();
   }
