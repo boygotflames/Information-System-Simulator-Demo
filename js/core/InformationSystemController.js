@@ -2,6 +2,7 @@ import { STALL_CATALOG } from "../data/stallCatalog.js";
 import { RECIPE_BOOK } from "../data/recipeBook.js";
 import { saveState, loadState } from "./LocalStateRepository.js";
 import ServiceRulesEngine from "./ServiceRulesEngine.js";
+import RestockEngine from "./RestockEngine.js";
 import {
   COUNTER_BEHAVIOR_BY_STALL,
   getCounterBehaviorProfile,
@@ -18,6 +19,7 @@ export default class InformationSystemController {
       catalog: this.catalog,
       recipeBook: this.recipeBook
     });
+    this.restockEngine = new RestockEngine();
 
     this.transactions = [];
     this.dailySales = 0;
@@ -82,7 +84,13 @@ export default class InformationSystemController {
       },
       recommendedCounterAction: "Counters balanced.",
       continuityStatus: "Stable",
-      continuityRecoveryCount: 0
+      continuityRecoveryCount: 0,
+      restockSeverity: "Stable",
+      pendingRestockCount: 0,
+      activeDeliveryCount: 0,
+      completedRestockCount: 0,
+      pendingRestockSummary: "No pending restocks",
+      activeDeliverySummary: "No active deliveries"
     };
     this.playerProfile = {
       id: "player_001",
@@ -95,6 +103,12 @@ export default class InformationSystemController {
       seatedAt: null,
       hasCampusCard: true
     };
+    this.restockState = {
+      pendingRequests: [],
+      activeDeliveries: [],
+      completedDeliveries: 0,
+      lastManagerAction: "No intervention yet."
+    };
 
     const savedState = loadState();
     if (savedState) {
@@ -102,6 +116,7 @@ export default class InformationSystemController {
     }
 
     this.ensureOperationalContinuity();
+    this.refreshRestockPipeline();
   }
 
   hydrateState(savedState) {
@@ -148,6 +163,13 @@ export default class InformationSystemController {
         ...savedState.playerProfile
       };
     }
+
+    if (savedState.restockState) {
+      this.restockState = {
+        ...this.restockState,
+        ...savedState.restockState
+      };
+    }
   }
 
   persistState() {
@@ -158,7 +180,8 @@ export default class InformationSystemController {
       stalls: this.stalls,
       lastRecipeAccessed: this.lastRecipeAccessed,
       operationalMetrics: this.operationalMetrics,
-      playerProfile: this.playerProfile
+      playerProfile: this.playerProfile,
+      restockState: this.restockState
     });
   }
 
@@ -202,6 +225,129 @@ export default class InformationSystemController {
     }
 
     return recovered;
+  }
+
+  refreshRestockPipeline() {
+    const reconciledPending = this.restockEngine.reconcilePendingRequests(
+      this.inventory,
+      this.restockState.pendingRequests,
+      this.restockState.activeDeliveries
+    );
+
+    this.restockState.pendingRequests = reconciledPending;
+
+    const newRequests = this.restockEngine.buildPendingRequests(this.inventory, {
+      existingRequests: this.restockState.pendingRequests,
+      activeDeliveries: this.restockState.activeDeliveries
+    });
+
+    if (newRequests.length > 0) {
+      this.restockState.pendingRequests = this.restockEngine.prioritizeRequests([
+        ...this.restockState.pendingRequests,
+        ...newRequests
+      ]);
+    }
+
+    this.updateRestockOperationalMetrics();
+
+    if (newRequests.length > 0) {
+      this.persistState();
+    }
+  }
+
+  updateRestockOperationalMetrics() {
+    const severity = this.restockEngine.getPipelineSeverity({
+      inventory: this.inventory,
+      pendingRequests: this.restockState.pendingRequests,
+      activeDeliveries: this.restockState.activeDeliveries
+    });
+
+    this.operationalMetrics.restockSeverity = severity.label;
+    this.operationalMetrics.pendingRestockCount = this.restockState.pendingRequests.length;
+    this.operationalMetrics.activeDeliveryCount = this.restockState.activeDeliveries.length;
+    this.operationalMetrics.completedRestockCount = this.restockState.completedDeliveries;
+    this.operationalMetrics.pendingRestockSummary =
+      this.restockEngine.formatPendingSummary(this.restockState.pendingRequests);
+    this.operationalMetrics.activeDeliverySummary =
+      this.restockEngine.formatActiveSummary(this.restockState.activeDeliveries);
+  }
+
+  triggerManagerIntervention(maxApprovals = 2) {
+    this.refreshRestockPipeline();
+
+    if (this.restockState.pendingRequests.length === 0) {
+      this.restockState.lastManagerAction = "No restock approved - inventory stable.";
+      this.persistState();
+      this.updateDashboard();
+
+      return {
+        ok: false,
+        message: this.restockState.lastManagerAction
+      };
+    }
+
+    const { approved, remaining } = this.restockEngine.approveRequests(
+      this.restockState.pendingRequests,
+      maxApprovals
+    );
+
+    this.restockState.pendingRequests = remaining;
+    this.restockState.activeDeliveries = [
+      ...this.restockState.activeDeliveries,
+      ...approved
+    ];
+
+    const labels = approved.map((item) => item.label).join(", ");
+    this.restockState.lastManagerAction = `Approved delivery: ${labels}.`;
+    this.operationalMetrics.continuityStatus = "Manager Intervention";
+
+    this.updateRestockOperationalMetrics();
+    this.persistState();
+    this.updateDashboard();
+
+    return {
+      ok: true,
+      message: this.restockState.lastManagerAction,
+      approved
+    };
+  }
+
+  updateRuntimeSystems(deltaTime) {
+    if (this.restockState.activeDeliveries.length === 0) {
+      this.updateRestockOperationalMetrics();
+      return;
+    }
+
+    const {
+      activeDeliveries,
+      completedDeliveries
+    } = this.restockEngine.tickActiveDeliveries(
+      this.restockState.activeDeliveries,
+      deltaTime
+    );
+
+    this.restockState.activeDeliveries = activeDeliveries;
+
+    if (completedDeliveries.length > 0) {
+      completedDeliveries.forEach((delivery) => {
+        this.inventory = this.restockEngine.applyCompletedDelivery(
+          this.inventory,
+          delivery
+        );
+        this.restockState.completedDeliveries += 1;
+      });
+
+      const deliveredLabels = completedDeliveries.map((item) => item.label).join(", ");
+      this.restockState.lastManagerAction = `Delivery received: ${deliveredLabels}.`;
+      this.operationalMetrics.continuityStatus = "Delivery Received";
+
+      this.refreshRestockPipeline();
+      this.persistState();
+      this.updateDashboard();
+      return;
+    }
+
+    this.updateRestockOperationalMetrics();
   }
 
   recordBlockedTransaction() {
@@ -626,6 +772,13 @@ export default class InformationSystemController {
     const recommendedCounterActionEl = document.getElementById("recommendedCounterAction");
     const continuityStatusEl = document.getElementById("continuityStatus");
     const continuityRecoveryCountEl = document.getElementById("continuityRecoveryCount");
+    const restockSeverityEl = document.getElementById("restockSeverity");
+    const pendingRestockCountEl = document.getElementById("pendingRestockCount");
+    const activeDeliveryCountEl = document.getElementById("activeDeliveryCount");
+    const completedRestockCountEl = document.getElementById("completedRestockCount");
+    const pendingRestockSummaryEl = document.getElementById("pendingRestockSummary");
+    const activeDeliverySummaryEl = document.getElementById("activeDeliverySummary");
+    const lastManagerActionEl = document.getElementById("lastManagerAction");
     const statusEl = document.getElementById("systemStatus");
 
     if (liveQueueEl) liveQueueEl.textContent = this.operationalMetrics.liveQueueLength;
@@ -680,6 +833,27 @@ export default class InformationSystemController {
 
     if (continuityRecoveryCountEl) {
       continuityRecoveryCountEl.textContent = this.operationalMetrics.continuityRecoveryCount;
+    }
+    if (restockSeverityEl) {
+      restockSeverityEl.textContent = this.operationalMetrics.restockSeverity;
+    }
+    if (pendingRestockCountEl) {
+      pendingRestockCountEl.textContent = this.operationalMetrics.pendingRestockCount;
+    }
+    if (activeDeliveryCountEl) {
+      activeDeliveryCountEl.textContent = this.operationalMetrics.activeDeliveryCount;
+    }
+    if (completedRestockCountEl) {
+      completedRestockCountEl.textContent = this.operationalMetrics.completedRestockCount;
+    }
+    if (pendingRestockSummaryEl) {
+      pendingRestockSummaryEl.textContent = this.operationalMetrics.pendingRestockSummary;
+    }
+    if (activeDeliverySummaryEl) {
+      activeDeliverySummaryEl.textContent = this.operationalMetrics.activeDeliverySummary;
+    }
+    if (lastManagerActionEl) {
+      lastManagerActionEl.textContent = this.restockState.lastManagerAction;
     }
 
     if (statusEl) {
@@ -1024,6 +1198,14 @@ export default class InformationSystemController {
       alerts.push(`Queue abandonment observed: ${this.operationalMetrics.abandonedTransactions}`);
     }
 
+    if (this.operationalMetrics.pendingRestockCount > 0) {
+      alerts.push(`Pending restocks: ${this.operationalMetrics.pendingRestockSummary}`);
+    }
+
+    if (this.operationalMetrics.activeDeliveryCount > 0) {
+      alerts.push(`Deliveries inbound: ${this.operationalMetrics.activeDeliverySummary}`);
+    }
+
     return alerts.length ? alerts.join(" | ") : "No alert";
   }
 
@@ -1110,6 +1292,8 @@ export default class InformationSystemController {
   }
 
   updateDashboard() {
+    this.refreshRestockPipeline();
+
     const statusEl = document.getElementById("systemStatus");
     const tpsCountEl = document.getElementById("tpsCount");
     const misSalesEl = document.getElementById("misSales");

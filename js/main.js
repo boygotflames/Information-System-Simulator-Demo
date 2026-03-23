@@ -231,11 +231,17 @@ simulateBtn.addEventListener("click", () => {
 });
 
 managerModeBtn.addEventListener("click", () => {
+  const intervention = controller.triggerManagerIntervention
+    ? controller.triggerManagerIntervention()
+    : null;
+
   controller.inspectObject({
     name: "Manager Dashboard",
     type: "Management Interface",
     isRole: "MIS / DSS / ESS",
-    description: "This interface summarizes operational data for decisions, forecasting, and executive oversight."
+    description: intervention?.message
+      ? `This interface summarizes operational data for decisions, forecasting, executive oversight, and restock approvals. Last action: ${intervention.message}`
+      : "This interface summarizes operational data for decisions, forecasting, executive oversight, and restock approvals."
   });
 });
 
@@ -265,6 +271,11 @@ function loop(currentTime) {
   studentFlow.update(deltaTime, {
     playerOccupiedSeatId: player.seatedSeatId
   });
+
+  if (controller.updateRuntimeSystems) {
+    controller.updateRuntimeSystems(deltaTime);
+  }
+
   controller.renderOperationalMetrics();
 
   drawScene();
