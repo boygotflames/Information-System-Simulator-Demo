@@ -4,10 +4,20 @@ import CanvasInspector from "./systems/CanvasInspector.js";
 import StudentDiningFlowSimulator from "./systems/StudentDiningFlowSimulator.js";
 import PlayerAvatar from "./entities/PlayerAvatar.js";
 import * as CanteenLayout from "./data/canteenLayout.js";
-import { DINING_TABLES_8, ALL_DINING_SEATS } from "./data/diningAreaLayout.js";
+import {
+  DINING_TABLES_8,
+  ALL_DINING_SEATS,
+  TRAY_RETURN_STATION,
+  WASHING_AREA,
+  TRAY_RETURN_PATH
+} from "./data/diningAreaLayout.js";
 import TrayReturnSystem from "./systems/TrayReturnSystem.js";
 import { STATIC_OBSTACLES } from "./data/collisionLayout.js";
 import { initDashboardToggle } from "./ui/dashboardToggle.js";
+import WorldRenderer from "./rendering/WorldRenderer.js";
+import EnvironmentRenderer from "./rendering/EnvironmentRenderer.js";
+import CharacterRenderer from "./rendering/CharacterRenderer.js";
+import ShadowRenderer from "./rendering/ShadowRenderer.js";
 
 const simulateBtn = document.getElementById("simulateTransactionBtn");
 const managerModeBtn = document.getElementById("managerModeBtn");
@@ -27,6 +37,14 @@ let lastTime = performance.now();
 const player = new PlayerAvatar({ x: 90, y: 430, label: "Player" });
 const allSeats = ALL_DINING_SEATS;
 const worldObstacles = STATIC_OBSTACLES;
+const shadowRenderer = new ShadowRenderer();
+const environmentRenderer = new EnvironmentRenderer({ shadowRenderer });
+const characterRenderer = new CharacterRenderer({ shadowRenderer });
+const worldRenderer = new WorldRenderer({
+  environmentRenderer,
+  characterRenderer,
+  shadowRenderer
+});
 
 const keyState = {
   up: false,
@@ -84,42 +102,6 @@ window.addEventListener("keyup", (event) => {
   }
 });
 
-function drawDiningTables(ctx) {
-  ctx.save();
-
-  const occupiedSeatIds = studentFlow.getOccupiedSeatIds(player.seatedSeatId);
-
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = "14px Arial";
-  ctx.fillText("Dining Area", 650, 284);
-
-  DINING_TABLES_8.forEach((table) => {
-    ctx.fillStyle = "#8b5a2b";
-    ctx.fillRect(table.x, table.y, table.width, table.height);
-
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(table.x, table.y, table.width, table.height);
-
-    table.seats.forEach((seat) => {
-      const isPlayerSeat = player.seatedSeatId === seat.id;
-      const isOccupied = occupiedSeatIds.has(seat.id);
-
-      ctx.fillStyle = isPlayerSeat
-        ? "#f8fafc"
-        : isOccupied
-          ? "#f59e0b"
-          : "#94a3b8";
-
-      ctx.fillRect(seat.x, seat.y, seat.width, seat.height);
-      ctx.strokeStyle = "#0f172a";
-      ctx.strokeRect(seat.x, seat.y, seat.width, seat.height);
-    });
-  });
-
-  ctx.restore();
-}
-
 function handlePlayerInteraction() {
   const playerCenterX = player.x + player.size / 2;
   const playerCenterY = player.y + player.size / 2;
@@ -165,45 +147,22 @@ function handlePlayerInteraction() {
 }
 
 function drawScene() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  worldRenderer.draw(ctx, {
+    canvas,
+    servicePoints: CanteenLayout.SERVICE_POINT_LIST || Object.values(CanteenLayout.SERVICE_POINTS || {}),
+    diningTables: DINING_TABLES_8,
+    trayReturnStation: TRAY_RETURN_STATION,
+    washingArea: WASHING_AREA,
+    trayPath: TRAY_RETURN_PATH,
+    occupiedSeatIds: studentFlow.getOccupiedSeatIds(player.seatedSeatId),
+    playerSeatId: player.seatedSeatId,
+    trays: traySystem.trays,
+    students: studentFlow.students,
+    player,
+    playerProfile: controller.getPlayerProfile()
+  });
 
-  // background floor
-  ctx.fillStyle = "#1e293b";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // simple grid for canteen floor
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x < canvas.width; x += 32) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  for (let y = 0; y < canvas.height; y += 32) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-
-  // title on canvas
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = "18px Arial";
-  ctx.fillText("Canteen Operations Floor - IS Simulation View", 20, 30);
-
-  // draw clickable educational zones
   inspector.drawDebugZones(ctx);
-  drawDiningTables(ctx);
-  traySystem.draw(ctx);
-  studentFlow.draw(ctx);
-  player.draw(ctx);
-
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = "14px Arial";
-  ctx.fillText("Player: move with WASD / Arrow Keys, press E near a service counter to buy, press E near seats to sit/eat", 20, canvas.height - 20);
 }
 
 canvas.addEventListener("click", (event) => {

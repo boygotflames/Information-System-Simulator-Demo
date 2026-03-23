@@ -50,18 +50,34 @@ export default class CanvasInspector {
 
       ctx.save();
 
-      ctx.fillStyle = item.color;
-      ctx.globalAlpha = 0.85;
-      ctx.fillRect(item.x, item.y, item.width, item.height);
+      if (isHovered) {
+        ctx.fillStyle = item.color;
+        ctx.globalAlpha = 0.16;
+        ctx.fillRect(item.x, item.y, item.width, item.height);
+      }
 
       ctx.globalAlpha = 1;
-      ctx.lineWidth = isHovered ? 4 : 2;
-      ctx.strokeStyle = isHovered ? "#ffffff" : "#0f172a";
+      ctx.setLineDash(isHovered ? [] : [6, 6]);
+      ctx.lineWidth = isHovered ? 2.5 : 1;
+      ctx.strokeStyle = isHovered ? "#ffffff" : "rgba(203, 213, 225, 0.18)";
       ctx.strokeRect(item.x, item.y, item.width, item.height);
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "14px Arial";
-      ctx.fillText(item.name, item.x + 6, item.y + Math.floor(item.height / 2));
+      if (isHovered) {
+        const labelWidth = Math.max(120, item.name.length * 8 + 16);
+        const labelX = item.x + 6;
+        const labelY = Math.max(18, item.y - 24);
+
+        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+        ctx.fillRect(labelX, labelY, labelWidth, 18);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(labelX, labelY, labelWidth, 18);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "12px Arial";
+        ctx.fillText(item.name, labelX + 8, labelY + 12);
+      }
 
       ctx.restore();
     }
