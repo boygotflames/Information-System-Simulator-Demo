@@ -32,6 +32,7 @@
         <div class="topbar-actions">
           <button id="simulateTransactionBtn" class="action-btn">Simulate TPS</button>
           <button id="managerModeBtn" class="action-btn">Manager Mode</button>
+          <button id="archiveReportBtn" class="action-btn">Archive Report</button>
         </div>
       </header>
 
@@ -162,6 +163,8 @@
             <p><strong>Pending Restock Detail:</strong> <span id="pendingRestockSummary">No pending restocks</span></p>
             <p><strong>Inbound Delivery Detail:</strong> <span id="activeDeliverySummary">No active deliveries</span></p>
             <p><strong>Last Manager Action:</strong> <span id="lastManagerAction">No intervention yet.</span></p>
+            <p><strong>Archived Reports:</strong> <span id="reportArchiveCount">0</span></p>
+            <p><strong>Latest Report:</strong> <span id="latestReportSummary">No archived reports yet.</span></p>
             <p><strong>Abandoned Orders:</strong> <span id="abandonedTransactions">0</span></p>
             <p><strong>Blocked Orders:</strong> <span id="blockedTransactions">0</span></p>
             <p><strong>Rerouted Orders:</strong> <span id="reroutedTransactions">0</span></p>
@@ -177,6 +180,13 @@
           <h3>Transaction Feed</h3>
           <div class="card feed" id="transactionFeed">
             <p class="feed-placeholder">No transactions yet.</p>
+          </div>
+        </section>
+
+        <section class="dashboard-section section-full">
+          <h3>Executive Report Archive</h3>
+          <div class="card feed" id="reportArchiveFeed">
+            <p class="feed-placeholder">No archived reports yet.</p>
           </div>
         </section>
       </div>

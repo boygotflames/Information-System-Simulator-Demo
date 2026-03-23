@@ -3,6 +3,7 @@ import { RECIPE_BOOK } from "../data/recipeBook.js";
 import { saveState, loadState } from "./LocalStateRepository.js";
 import ServiceRulesEngine from "./ServiceRulesEngine.js";
 import RestockEngine from "./RestockEngine.js";
+import ExecutiveReportEngine from "./ExecutiveReportEngine.js";
 import {
   COUNTER_BEHAVIOR_BY_STALL,
   getCounterBehaviorProfile,
@@ -20,6 +21,7 @@ export default class InformationSystemController {
       recipeBook: this.recipeBook
     });
     this.restockEngine = new RestockEngine();
+    this.reportEngine = new ExecutiveReportEngine();
 
     this.transactions = [];
     this.dailySales = 0;
@@ -109,6 +111,11 @@ export default class InformationSystemController {
       completedDeliveries: 0,
       lastManagerAction: "No intervention yet."
     };
+    this.reportingState = {
+      currentDayNumber: 1,
+      archivedReports: [],
+      latestReportSummary: "No archived reports yet."
+    };
 
     const savedState = loadState();
     if (savedState) {
@@ -170,6 +177,13 @@ export default class InformationSystemController {
         ...savedState.restockState
       };
     }
+
+    if (savedState.reportingState) {
+      this.reportingState = {
+        ...this.reportingState,
+        ...savedState.reportingState
+      };
+    }
   }
 
   persistState() {
@@ -181,7 +195,8 @@ export default class InformationSystemController {
       lastRecipeAccessed: this.lastRecipeAccessed,
       operationalMetrics: this.operationalMetrics,
       playerProfile: this.playerProfile,
-      restockState: this.restockState
+      restockState: this.restockState,
+      reportingState: this.reportingState
     });
   }
 
@@ -348,6 +363,93 @@ export default class InformationSystemController {
     }
 
     this.updateRestockOperationalMetrics();
+  }
+
+  hasMeaningfulOperationalActivity() {
+    return (
+      this.transactions.length > 0 ||
+      this.dailySales > 0 ||
+      this.operationalMetrics.peakQueueLength > 0 ||
+      this.operationalMetrics.blockedTransactions > 0 ||
+      this.operationalMetrics.reroutedTransactions > 0 ||
+      this.operationalMetrics.abandonedTransactions > 0 ||
+      this.operationalMetrics.completedRestockCount > 0 ||
+      this.operationalMetrics.pendingRestockCount > 0 ||
+      this.operationalMetrics.activeDeliveryCount > 0
+    );
+  }
+
+  archiveCurrentOperationalReport() {
+    if (!this.hasMeaningfulOperationalActivity()) {
+      return {
+        ok: false,
+        message: "No meaningful activity to archive yet."
+      };
+    }
+
+    const report = this.reportEngine.buildReport({
+      dayNumber: this.reportingState.currentDayNumber,
+      transactions: this.transactions,
+      dailySales: this.dailySales,
+      stalls: this.stalls,
+      inventory: this.inventory,
+      operationalMetrics: this.operationalMetrics,
+      efficiencyScore: this.getEfficiencyScore()
+    });
+
+    this.reportingState.archivedReports = [
+      report,
+      ...this.reportingState.archivedReports
+    ].slice(0, 12);
+
+    this.reportingState.latestReportSummary =
+      this.reportEngine.formatArchiveSummary(report);
+
+    this.reportingState.currentDayNumber += 1;
+    this.restockState.lastManagerAction = `Archived ${report.dayLabel}.`;
+
+    this.persistState();
+    this.updateDashboard();
+
+    return {
+      ok: true,
+      message: `Archived ${report.dayLabel}.`,
+      report
+    };
+  }
+
+  updateReportArchiveDom() {
+    const reportArchiveCountEl = document.getElementById("reportArchiveCount");
+    const latestReportSummaryEl = document.getElementById("latestReportSummary");
+    const reportArchiveFeedEl = document.getElementById("reportArchiveFeed");
+
+    if (reportArchiveCountEl) {
+      reportArchiveCountEl.textContent = this.reportingState.archivedReports.length;
+    }
+
+    if (latestReportSummaryEl) {
+      latestReportSummaryEl.textContent = this.reportingState.latestReportSummary;
+    }
+
+    if (!reportArchiveFeedEl) return;
+
+    if (this.reportingState.archivedReports.length === 0) {
+      reportArchiveFeedEl.innerHTML = `<p class="feed-placeholder">No archived reports yet.</p>`;
+      return;
+    }
+
+    reportArchiveFeedEl.innerHTML = this.reportingState.archivedReports
+      .slice(0, 5)
+      .map(
+        (report) => `
+          <div class="feed-entry">
+            <strong>${report.dayLabel}</strong> — ${report.createdAt}<br />
+            ${report.executiveSummary}<br />
+            <em>${report.riskSummary}</em>
+          </div>
+        `
+      )
+      .join("");
   }
 
   recordBlockedTransaction() {
@@ -1321,6 +1423,7 @@ export default class InformationSystemController {
     this.updateEducationalCounters();
     this.updateInventoryDom();
     this.updateTransactionFeed();
+    this.updateReportArchiveDom();
     this.renderOperationalMetrics();
     this.renderPlayerProfile();
   }

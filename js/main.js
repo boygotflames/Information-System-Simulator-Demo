@@ -11,6 +11,7 @@ import { initDashboardToggle } from "./ui/dashboardToggle.js";
 
 const simulateBtn = document.getElementById("simulateTransactionBtn");
 const managerModeBtn = document.getElementById("managerModeBtn");
+const archiveReportBtn = document.getElementById("archiveReportBtn");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -242,6 +243,21 @@ managerModeBtn.addEventListener("click", () => {
     description: intervention?.message
       ? `This interface summarizes operational data for decisions, forecasting, executive oversight, and restock approvals. Last action: ${intervention.message}`
       : "This interface summarizes operational data for decisions, forecasting, executive oversight, and restock approvals."
+  });
+});
+
+archiveReportBtn?.addEventListener("click", () => {
+  const archiveResult = controller.archiveCurrentOperationalReport
+    ? controller.archiveCurrentOperationalReport()
+    : null;
+
+  controller.inspectObject({
+    name: "Executive Report Archive",
+    type: "Management Reporting",
+    isRole: "MIS / ESS / Executive Oversight",
+    description: archiveResult?.message
+      ? `Operational reporting archive. Last archive action: ${archiveResult.message}`
+      : "Operational reporting archive for daily executive summaries."
   });
 });
 
