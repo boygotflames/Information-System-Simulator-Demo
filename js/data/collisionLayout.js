@@ -1,74 +1,61 @@
-import { INSPECTABLES } from "./inspectables.js";
+import { isRectBlocked } from "../systems/CollisionSystem.js";
+import { STALL_BODY_RECTS } from "./canteenLayout.js";
 import {
-  DINING_TABLES_8,
+  DINING_TABLE_RECTS,
   TRAY_RETURN_STATION,
   WASHING_AREA
 } from "./diningAreaLayout.js";
 
 function inflateRect(rect, padding = 0) {
   return {
-    id: rect.id,
     x: rect.x - padding,
     y: rect.y - padding,
-    width: rect.width + padding * 2,
-    height: rect.height + padding * 2
+    w: rect.w + padding * 2,
+    h: rect.h + padding * 2,
+    label: rect.label
   };
 }
 
-const inspectableObstacles = INSPECTABLES.map((item) => {
-  const width = item.width ?? item.w ?? 0;
-  const height = item.height ?? item.h ?? 0;
-
-  return inflateRect(
-    {
-      id: `inspectable_${item.id}`,
-      x: item.x,
-      y: item.y,
-      width,
-      height
-    },
-    4
-  );
-});
-
-const diningTableObstacles = DINING_TABLES_8.map((table) =>
-  inflateRect(
-    {
-      id: `obstacle_${table.id}`,
-      x: table.x,
-      y: table.y,
-      width: table.width,
-      height: table.height
-    },
-    4
-  )
-);
+const stallObstacles = STALL_BODY_RECTS.map((rect) => inflateRect(rect, 4));
+const tableObstacles = DINING_TABLE_RECTS.map((rect) => inflateRect(rect, 4));
 
 const utilityObstacles = [
   inflateRect(
     {
-      id: "tray_return_station",
       x: TRAY_RETURN_STATION.x,
       y: TRAY_RETURN_STATION.y,
-      width: TRAY_RETURN_STATION.width,
-      height: TRAY_RETURN_STATION.height
+      w: TRAY_RETURN_STATION.width,
+      h: TRAY_RETURN_STATION.height,
+      label: TRAY_RETURN_STATION.label
     },
     2
   ),
   inflateRect(
     {
-      id: "washing_area",
       x: WASHING_AREA.x,
       y: WASHING_AREA.y,
-      width: WASHING_AREA.width,
-      height: WASHING_AREA.height
+      w: WASHING_AREA.width,
+      h: WASHING_AREA.height,
+      label: WASHING_AREA.label
     },
     2
   )
 ];
 
 export const STATIC_OBSTACLES = [
-  ...inspectableObstacles,
-  ...diningTableObstacles,
+  ...stallObstacles,
+  ...tableObstacles,
   ...utilityObstacles
 ];
+
+export function isBlocked(x, y, size, obstacles = STATIC_OBSTACLES) {
+  return isRectBlocked(
+    {
+      x,
+      y,
+      w: size,
+      h: size
+    },
+    obstacles
+  );
+}

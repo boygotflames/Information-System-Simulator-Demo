@@ -157,7 +157,9 @@ function drawScene() {
     occupiedSeatIds: studentFlow.getOccupiedSeatIds(player.seatedSeatId),
     playerSeatId: player.seatedSeatId,
     trays: traySystem.trays,
-    students: studentFlow.students,
+    students: studentFlow.getRenderableStudents
+      ? studentFlow.getRenderableStudents()
+      : studentFlow.students,
     player,
     playerProfile: controller.getPlayerProfile()
   });

@@ -52,7 +52,7 @@ button {
 }
 
 body.dashboard-open .game-panel {
-  margin-right: min(440px, 34vw);
+  margin-right: 0;
 }
 
 .topbar {
@@ -180,18 +180,11 @@ body.dashboard-open .game-panel {
 }
 
 .dashboard-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.42);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  z-index: 15;
+  display: none;
 }
 
 body.dashboard-open .dashboard-scrim {
-  opacity: 1;
-  pointer-events: auto;
+  display: none;
 }
 
 .dashboard-panel {
@@ -200,7 +193,8 @@ body.dashboard-open .dashboard-scrim {
   right: 0;
   bottom: 0;
   width: min(440px, 34vw);
-  background: rgba(24, 36, 52, 0.985);
+  background: rgba(24, 36, 52, 0.92);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);

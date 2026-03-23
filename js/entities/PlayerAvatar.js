@@ -1,4 +1,4 @@
-import { moveRectWithCollisions } from "../systems/CollisionSystem.js";
+import { resolveMovement } from "../systems/CollisionSystem.js";
 
 export default class PlayerAvatar {
   constructor({
@@ -39,22 +39,22 @@ export default class PlayerAvatar {
     dx /= length;
     dy /= length;
 
-    const next = moveRectWithCollisions(
+    const next = resolveMovement(
       {
         x: this.x,
         y: this.y,
-        width: this.size,
-        height: this.size
+        w: this.size,
+        h: this.size
       },
       dx * this.speed * deltaTime,
       dy * this.speed * deltaTime,
+      world.obstacles ?? [],
       {
         minX: world.minX ?? 0,
         minY: world.minY ?? 40,
         maxX: world.maxX,
         maxY: world.maxY
-      },
-      world.obstacles ?? []
+      }
     );
 
     this.x = next.x;

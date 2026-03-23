@@ -1,111 +1,133 @@
-export const DINING_ROUTE_LANES = {
-  entryX: 470,
-  northY: 296,
-  middleY: 394,
-  southY: 492,
-  trayLaneX: 922,
-  exitLaneX: 950,
-  exitY: 520
-};
+import {
+  CANVAS_W,
+  CANVAS_H,
+  DINING_GRID,
+  EXIT_POINT
+} from "./LayoutConstants.js";
 
-function createHorizontalTable(id, label, x, y, rowIndex) {
-  const width = 80;
-  const height = 32;
-  const seatWidth = 10;
-  const seatHeight = 10;
+function createSeatSet(tableId, tableLabel, tableX, tableY, tableW, tableH) {
+  const seatSize = DINING_GRID.seatSize;
+  const seatOffset = DINING_GRID.seatOffset;
 
-  const topSeatY = y - 18;
-  const bottomSeatY = y + height + 8;
-  const seatXs = [x + 12, x + 35, x + 58];
+  const horizontalGap = Math.floor((tableW - seatSize * 3) / 4);
+  const seatXs = [
+    tableX + horizontalGap,
+    tableX + horizontalGap * 2 + seatSize,
+    tableX + horizontalGap * 3 + seatSize * 2
+  ];
 
-  const seats = [];
+  const topY = tableY - seatSize - seatOffset;
+  const bottomY = tableY + tableH + seatOffset;
 
-  seatXs.forEach((seatX, index) => {
-    const topApproachY =
-      rowIndex === 0 ? DINING_ROUTE_LANES.northY : DINING_ROUTE_LANES.middleY;
+  return seatXs.flatMap((seatX, index) => {
+    const seatNumber = index + 1;
 
-    const bottomApproachY =
-      rowIndex === 0 ? DINING_ROUTE_LANES.middleY : DINING_ROUTE_LANES.southY;
-
-    seats.push({
-      id: `${id}_T${index + 1}`,
-      label: `${label}-T${index + 1}`,
-      tableId: id,
-      rowIndex,
-      side: "top",
-      x: seatX,
-      y: topSeatY,
-      width: seatWidth,
-      height: seatHeight,
-      actorX: seatX,
-      actorY: topSeatY,
-      anchorX: seatX + seatWidth / 2,
-      anchorY: topSeatY + seatHeight / 2,
-      approachY: topApproachY
-    });
-
-    seats.push({
-      id: `${id}_B${index + 1}`,
-      label: `${label}-B${index + 1}`,
-      tableId: id,
-      rowIndex,
-      side: "bottom",
-      x: seatX,
-      y: bottomSeatY,
-      width: seatWidth,
-      height: seatHeight,
-      actorX: seatX,
-      actorY: bottomSeatY,
-      anchorX: seatX + seatWidth / 2,
-      anchorY: bottomSeatY + seatHeight / 2,
-      approachY: bottomApproachY
-    });
+    return [
+      {
+        id: `${tableId}_top_${seatNumber}`,
+        tableId,
+        label: `${tableLabel}-T${seatNumber}`,
+        side: "top",
+        x: seatX,
+        y: topY,
+        width: seatSize,
+        height: seatSize,
+        actorX: seatX,
+        actorY: topY,
+        anchorX: seatX + seatSize / 2,
+        anchorY: topY + seatSize / 2
+      },
+      {
+        id: `${tableId}_bottom_${seatNumber}`,
+        tableId,
+        label: `${tableLabel}-B${seatNumber}`,
+        side: "bottom",
+        x: seatX,
+        y: bottomY,
+        width: seatSize,
+        height: seatSize,
+        actorX: seatX,
+        actorY: bottomY,
+        anchorX: seatX + seatSize / 2,
+        anchorY: bottomY + seatSize / 2
+      }
+    ];
   });
+}
+
+function createDiningTable(col, row) {
+  const x = DINING_GRID.originX + col * (DINING_GRID.tableW + DINING_GRID.gapX);
+  const y = DINING_GRID.originY + row * (DINING_GRID.tableH + DINING_GRID.gapY);
+  const id = `table_${row * DINING_GRID.cols + col + 1}`;
+  const label = `T${row * DINING_GRID.cols + col + 1}`;
 
   return {
     id,
     label,
-    rowIndex,
+    col,
+    row,
     x,
     y,
-    width,
-    height,
-    seats
+    width: DINING_GRID.tableW,
+    height: DINING_GRID.tableH,
+    seats: createSeatSet(id, label, x, y, DINING_GRID.tableW, DINING_GRID.tableH)
   };
 }
 
-export const DINING_TABLES_8 = [
-  createHorizontalTable("table_1", "T1", 500, 326, 0),
-  createHorizontalTable("table_2", "T2", 602, 326, 0),
-  createHorizontalTable("table_3", "T3", 704, 326, 0),
-  createHorizontalTable("table_4", "T4", 806, 326, 0),
+export const DINING_TABLES = Array.from({ length: DINING_GRID.rows }, (_, row) =>
+  Array.from({ length: DINING_GRID.cols }, (_, col) => createDiningTable(col, row))
+).flat();
 
-  createHorizontalTable("table_5", "T5", 500, 430, 1),
-  createHorizontalTable("table_6", "T6", 602, 430, 1),
-  createHorizontalTable("table_7", "T7", 704, 430, 1),
-  createHorizontalTable("table_8", "T8", 806, 430, 1)
-];
+export const DINING_TABLES_8 = DINING_TABLES;
 
-export const ALL_DINING_SEATS = DINING_TABLES_8.flatMap((table) => table.seats);
+export const DINING_TABLE_RECTS = DINING_TABLES.map((table) => ({
+  x: table.x,
+  y: table.y,
+  w: table.width,
+  h: table.height,
+  label: table.label
+}));
+
+export const ALL_DINING_SEATS = DINING_TABLES.flatMap((table) => table.seats);
 
 export const TRAY_RETURN_STATION = {
-  x: 908,
-  y: 350,
-  width: 18,
-  height: 48,
+  x: 918,
+  y: 356,
+  width: 16,
+  height: 56,
   label: "Tray Return"
 };
 
 export const WASHING_AREA = {
-  x: 890,
-  y: 468,
-  width: 56,
-  height: 38,
+  x: 886,
+  y: 474,
+  width: 60,
+  height: 36,
   label: "Washing Area"
 };
 
 export const TRAY_RETURN_PATH = [
-  { x: 917, y: 374 },
-  { x: 917, y: 426 },
-  { x: 917, y: 487 }
+  { x: TRAY_RETURN_STATION.x + Math.floor(TRAY_RETURN_STATION.width / 2), y: 388 },
+  { x: TRAY_RETURN_STATION.x + Math.floor(TRAY_RETURN_STATION.width / 2), y: 432 },
+  { x: TRAY_RETURN_STATION.x + Math.floor(TRAY_RETURN_STATION.width / 2), y: 488 }
 ];
+
+export const DINING_ROUTE_LANES = {
+  entryX: 520,
+  northY: DINING_GRID.originY - 14,
+  middleY:
+    DINING_GRID.originY +
+    DINING_GRID.tableH +
+    Math.floor(DINING_GRID.gapY / 2),
+  southY:
+    DINING_GRID.originY +
+    (DINING_GRID.tableH + DINING_GRID.gapY) * DINING_GRID.rows +
+    4,
+  trayLaneX: TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 10,
+  exitLaneX: EXIT_POINT.x,
+  exitY: EXIT_POINT.y
+};
+
+export function getSeatById(seatId) {
+  return ALL_DINING_SEATS.find((seat) => seat.id === seatId) || null;
+}

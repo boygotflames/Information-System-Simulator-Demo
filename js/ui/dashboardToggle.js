@@ -5,7 +5,6 @@ export function initDashboardToggle() {
   const toggleBtn = document.getElementById("dashboardToggleBtn");
   const closeBtn = document.getElementById("dashboardCloseBtn");
   const panel = document.getElementById("dashboardPanel");
-  const scrim = document.getElementById("dashboardScrim");
 
   const setOpen = (isOpen) => {
     body.classList.toggle(OPEN_CLASS, isOpen);
@@ -20,12 +19,10 @@ export function initDashboardToggle() {
   };
 
   toggleBtn?.addEventListener("click", () => {
-    const isOpen = !body.classList.contains(OPEN_CLASS);
-    setOpen(isOpen);
+    setOpen(!body.classList.contains(OPEN_CLASS));
   });
 
   closeBtn?.addEventListener("click", () => setOpen(false));
-  scrim?.addEventListener("click", () => setOpen(false));
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {

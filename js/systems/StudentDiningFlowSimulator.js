@@ -1,15 +1,31 @@
 import { generateStudentIdentity } from "../data/namePools.js";
 import * as CanteenLayout from "../data/canteenLayout.js";
 import {
-  ALL_DINING_SEATS
+  ALL_DINING_SEATS,
+  TRAY_RETURN_STATION,
+  TRAY_RETURN_PATH
 } from "../data/diningAreaLayout.js";
-import NpcPathRouter from "./NpcPathRouter.js";
+import {
+  CANVAS_W,
+  CANVAS_H,
+  EXIT_POINT
+} from "../data/LayoutConstants.js";
+import {
+  STATIC_OBSTACLES,
+  isBlocked
+} from "../data/collisionLayout.js";
+import {
+  resolveMovement
+} from "./CollisionSystem.js";
+import {
+  routePath
+} from "./NpcPathRouter.js";
+import QueueSystem from "./QueueSystem.js";
 
 export default class StudentDiningFlowSimulator {
   constructor(controller, traySystem) {
     this.controller = controller;
     this.traySystem = traySystem;
-    this.pathRouter = new NpcPathRouter();
 
     this.students = [];
     this.nextStudentId = 1;
@@ -21,133 +37,80 @@ export default class StudentDiningFlowSimulator {
     this.burstChance = 0.16;
     this.maxStudents = 14;
 
-    this.servicePoints = CanteenLayout.SERVICE_POINT_LIST || Object.values(CanteenLayout.SERVICE_POINTS || {});
-    this.servicePointMap = Object.fromEntries(
-      this.servicePoints.map((point) => [point.id, point])
-    );
+    this.servicePoints =
+      CanteenLayout.SERVICE_POINT_LIST ||
+      Object.values(CanteenLayout.SERVICE_POINTS || {});
 
-    this.exitX = 950;
-    this.exitY = 520;
+    this.queueSystem = new QueueSystem(this.servicePoints);
+    this.activeServiceByStall = new Map();
 
     this.allSeats = ALL_DINING_SEATS;
     this.npcSeatAssignments = new Map();
+    this.currentPlayerOccupiedSeatId = null;
 
-    // Seed a small opening crowd so the simulation doesn't look broken on first load.
     this.spawnStudent();
     this.spawnStudent();
-  }
-
-  moveToward(student, targetX, targetY, deltaTime) {
-    const dx = targetX - student.x;
-    const dy = targetY - student.y;
-    const distance = Math.hypot(dx, dy);
-
-    if (distance < 0.75) {
-      student.x = targetX;
-      student.y = targetY;
-      return true;
-    }
-
-    const moveDistance = student.speed * deltaTime;
-    const ratio = Math.min(1, moveDistance / distance);
-
-    student.x += dx * ratio;
-    student.y += dy * ratio;
-
-    return false;
-  }
-
-  followRoute(student, deltaTime) {
-    if (!student.route || student.route.length === 0) {
-      return true;
-    }
-
-    const waypoint = student.route[student.routeIndex];
-
-    if (!waypoint) {
-      return true;
-    }
-
-    const arrived = this.moveToward(student, waypoint.x, waypoint.y, deltaTime);
-
-    if (!arrived) {
-      return false;
-    }
-
-    student.routeIndex += 1;
-
-    return student.routeIndex >= student.route.length;
-  }
-
-  setRoute(student, route) {
-    student.route = route;
-    student.routeIndex = 0;
-  }
-
-  getSeatById(seatId) {
-    return this.allSeats.find((seat) => seat.id === seatId) || null;
-  }
-
-  getServicePointForStall(stallId) {
-    return (CanteenLayout.getServicePointByStallId
-      ? CanteenLayout.getServicePointByStallId(stallId)
-      : this.servicePoints.find((point) => point.stallId === stallId)) || this.servicePoints[0];
-  }
-
-  getServicePointForStudent(student) {
-    return (CanteenLayout.getServicePointById
-      ? CanteenLayout.getServicePointById(student.servicePointId)
-      : this.servicePoints.find((point) => point.id === student.servicePointId)) || this.servicePoints[0];
-  }
-
-  getQueueTargetForStudent(student, queueIndex) {
-    const servicePoint = this.getServicePointForStudent(student);
-
-    return {
-      x: servicePoint.queueFrontX - queueIndex * servicePoint.queueSpacing,
-      y: servicePoint.queueY + student.queueOffsetY
-    };
-  }
-
-  getHoldingTargetForServicePoint(servicePoint) {
-    return {
-      x: servicePoint.holdingX + (Math.random() * 28 - 14),
-      y: servicePoint.holdingY + (Math.random() * 28 - 14)
-    };
-  }
-
-  getQueueBreakdown() {
-    const counts = {
-      ramen_stall: 0,
-      dry_noodle_stall: 0,
-      soup_station: 0
-    };
-
-    this.students.forEach((student) => {
-      if (
-        student.state === "queueing" ||
-        student.state === "moving_to_counter" ||
-        student.state === "paying" ||
-        student.state === "waiting_for_seat"
-      ) {
-        counts[student.scenario.stallId] = (counts[student.scenario.stallId] || 0) + 1;
-      }
-    });
-
-    return counts;
   }
 
   rollSpawnInterval() {
     return this.spawnIntervalMin + Math.random() * (this.spawnIntervalMax - this.spawnIntervalMin);
   }
 
-  pickSeatPreference() {
-    const roll = Math.random();
+  syncRuntimeDemandProfile() {
+    const runtimeProfile = this.controller.getRuntimeDemandProfile
+      ? this.controller.getRuntimeDemandProfile()
+      : null;
 
-    if (roll < 0.36) return "solo";
-    if (roll < 0.60) return "social";
-    if (roll < 0.82) return "far";
-    return "random";
+    if (!runtimeProfile) return;
+
+    const nextMin = Math.max(0.8, Number(runtimeProfile.spawnIntervalMin ?? this.spawnIntervalMin));
+    const nextMax = Math.max(nextMin + 0.2, Number(runtimeProfile.spawnIntervalMax ?? this.spawnIntervalMax));
+    const nextBurst = Math.max(0, Math.min(0.6, Number(runtimeProfile.burstChance ?? this.burstChance)));
+    const nextMaxStudents = Math.max(4, Math.round(Number(runtimeProfile.maxStudents ?? this.maxStudents)));
+
+    this.spawnIntervalMin = nextMin;
+    this.spawnIntervalMax = nextMax;
+    this.burstChance = nextBurst;
+    this.maxStudents = nextMaxStudents;
+
+    if (
+      this.nextSpawnInterval < this.spawnIntervalMin ||
+      this.nextSpawnInterval > this.spawnIntervalMax
+    ) {
+      this.nextSpawnInterval = this.rollSpawnInterval();
+    }
+  }
+
+  createStudentIdentityPayload() {
+    const identity = generateStudentIdentity();
+
+    return {
+      displayName: identity.displayName,
+      originType: identity.originType,
+      color: identity.originType === "domestic_pinyin" ? "#60a5fa" : "#f87171"
+    };
+  }
+
+  applyTimingProfile(student, stallId) {
+    const timingProfile = this.controller.createNpcTimingProfile
+      ? this.controller.createNpcTimingProfile(stallId)
+      : {
+          serviceDuration: 1.2,
+          patienceDuration: 9,
+          abandonmentDuration: 15,
+          rerouteCheckInterval: 1.6,
+          rerouteMinAdvantage: 2,
+          maxReroutes: 1,
+          abandonAtGlobalQueue: 9
+        };
+
+    student.serviceDuration = timingProfile.serviceDuration;
+    student.patienceDuration = timingProfile.patienceDuration;
+    student.abandonmentDuration = timingProfile.abandonmentDuration;
+  }
+
+  getSeatById(seatId) {
+    return this.allSeats.find((seat) => seat.id === seatId) || null;
   }
 
   getTableOccupancyMap(playerOccupiedSeatId = null) {
@@ -176,9 +139,32 @@ export default class StudentDiningFlowSimulator {
     return tableOccupancy;
   }
 
+  getOccupiedSeatIds(playerOccupiedSeatId = null) {
+    const occupied = new Set(this.npcSeatAssignments.keys());
+
+    if (playerOccupiedSeatId) {
+      occupied.add(playerOccupiedSeatId);
+    }
+
+    return occupied;
+  }
+
+  isSeatOccupiedByNpc(seatId) {
+    return this.npcSeatAssignments.has(seatId);
+  }
+
   getAvailableSeats(playerOccupiedSeatId = null) {
     const blocked = this.getOccupiedSeatIds(playerOccupiedSeatId);
     return this.allSeats.filter((seat) => !blocked.has(seat.id));
+  }
+
+  pickSeatPreference() {
+    const roll = Math.random();
+
+    if (roll < 0.36) return "solo";
+    if (roll < 0.6) return "social";
+    if (roll < 0.82) return "far";
+    return "random";
   }
 
   findAvailableSeat(student, playerOccupiedSeatId = null) {
@@ -186,35 +172,36 @@ export default class StudentDiningFlowSimulator {
     if (availableSeats.length === 0) return null;
 
     const tableOccupancy = this.getTableOccupancyMap(playerOccupiedSeatId);
-    const servicePoint = this.getServicePointForStudent(student);
+    const servicePoint = this.queueSystem.getServicePoint(student.scenario.stallId);
 
     const scoredSeats = availableSeats.map((seat) => {
       const tableLoad = tableOccupancy.get(seat.tableId) || 0;
-      const distanceFromCounter = Math.hypot(seat.actorX - servicePoint.x, seat.actorY - servicePoint.y);
-      const randomBias = Math.random() * 18;
+      const distanceFromCounter = Math.hypot(
+        seat.actorX - servicePoint.x,
+        seat.actorY - servicePoint.y
+      );
 
-      let score = randomBias;
+      let score = Math.random() * 12;
 
-      switch (student?.seatPreference) {
+      switch (student.seatPreference) {
         case "solo":
-          score += tableLoad === 0 ? 92 : Math.max(0, 16 - tableLoad * 4);
-          score += distanceFromCounter * 0.05;
+          score += tableLoad === 0 ? 90 : Math.max(0, 16 - tableLoad * 5);
+          score += distanceFromCounter * 0.04;
           break;
 
         case "social":
-          score += tableLoad > 0 && tableLoad < 4 ? 82 - Math.abs(2 - tableLoad) * 8 : 10;
-          score += Math.random() * 16;
+          score += tableLoad > 0 && tableLoad < 4 ? 82 - Math.abs(2 - tableLoad) * 8 : 8;
           break;
 
         case "far":
-          score += distanceFromCounter * 0.12;
-          score += tableLoad === 0 ? 22 : 6;
+          score += distanceFromCounter * 0.11;
+          score += tableLoad === 0 ? 20 : 4;
           break;
 
         case "random":
         default:
-          score += Math.random() * 75;
-          score += tableLoad === 0 ? 12 : 0;
+          score += Math.random() * 50;
+          score += tableLoad === 0 ? 10 : 0;
           break;
       }
 
@@ -222,11 +209,7 @@ export default class StudentDiningFlowSimulator {
     });
 
     scoredSeats.sort((a, b) => b.score - a.score);
-
-    const candidatePool = scoredSeats.slice(0, Math.min(5, scoredSeats.length));
-    const chosen = candidatePool[Math.floor(Math.random() * candidatePool.length)];
-
-    return chosen ? chosen.seat : availableSeats[0];
+    return scoredSeats[0]?.seat || null;
   }
 
   occupySeat(seatId, studentId) {
@@ -242,203 +225,303 @@ export default class StudentDiningFlowSimulator {
     }
   }
 
-  getOccupiedSeatIds(playerOccupiedSeatId = null) {
-    const occupied = new Set(this.npcSeatAssignments.keys());
-
-    if (playerOccupiedSeatId) {
-      occupied.add(playerOccupiedSeatId);
-    }
-
-    return occupied;
-  }
-
-  isSeatOccupiedByNpc(seatId) {
-    return this.npcSeatAssignments.has(seatId);
-  }
-
   operationalMetricsSafeToBurst() {
     const activeStudents = this.students.filter((student) => !student.remove).length;
     return activeStudents <= Math.floor(this.maxStudents * 0.7);
   }
 
-  syncRuntimeDemandProfile() {
-    const runtimeProfile = this.controller.getRuntimeDemandProfile
-      ? this.controller.getRuntimeDemandProfile()
-      : null;
+  hasRouteTarget(student, x, y) {
+    const last = student.route[student.route.length - 1];
+    if (!last) return false;
 
-    if (!runtimeProfile) {
+    return Math.abs(last.x - x) < 1 && Math.abs(last.y - y) < 1;
+  }
+
+  setRoute(student, waypoints = []) {
+    student.route = waypoints.slice();
+    student.routeIndex = 0;
+  }
+
+  buildRoute(fromX, fromY, toX, toY) {
+    return routePath(fromX, fromY, toX, toY, STATIC_OBSTACLES);
+  }
+
+  moveToward(student, targetX, targetY, deltaTime) {
+    const dx = targetX - student.x;
+    const dy = targetY - student.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 1.2) {
+      student.x = targetX;
+      student.y = targetY;
+      return true;
+    }
+
+    const moveDistance = student.speed * deltaTime;
+    const ratio = Math.min(1, moveDistance / distance);
+
+    const resolved = resolveMovement(
+      {
+        x: student.x,
+        y: student.y,
+        w: student.size,
+        h: student.size
+      },
+      dx * ratio,
+      dy * ratio,
+      STATIC_OBSTACLES,
+      {
+        minX: 0,
+        minY: 40,
+        maxX: CANVAS_W,
+        maxY: CANVAS_H
+      }
+    );
+
+    student.x = resolved.x;
+    student.y = resolved.y;
+
+    return Math.hypot(targetX - student.x, targetY - student.y) < 1.2;
+  }
+
+  followRoute(student, deltaTime) {
+    if (!student.route || student.route.length === 0) {
+      return true;
+    }
+
+    const waypoint = student.route[student.routeIndex];
+    if (!waypoint) {
+      return true;
+    }
+
+    const arrived = this.moveToward(student, waypoint.x, waypoint.y, deltaTime);
+
+    if (!arrived) {
+      return false;
+    }
+
+    student.routeIndex += 1;
+    return student.routeIndex >= student.route.length;
+  }
+
+  routeStudentToExit(student) {
+    this.setRoute(
+      student,
+      this.buildRoute(student.x, student.y, EXIT_POINT.x, EXIT_POINT.y)
+    );
+    student.state = "DONE";
+  }
+
+  sendStudentToQueue(student) {
+    const slot = this.queueSystem.joinQueue(student.scenario.stallId, student.id);
+
+    if (!slot || isBlocked(slot.x, slot.y, student.size)) {
+      this.controller.recordAbandonedTransaction?.();
+      this.routeStudentToExit(student);
       return;
     }
 
-    const nextMin = Math.max(0.8, Number(runtimeProfile.spawnIntervalMin ?? this.spawnIntervalMin));
-    const nextMax = Math.max(nextMin + 0.2, Number(runtimeProfile.spawnIntervalMax ?? this.spawnIntervalMax));
-    const nextBurst = Math.max(0, Math.min(0.6, Number(runtimeProfile.burstChance ?? this.burstChance)));
-    const nextMaxStudents = Math.max(4, Math.round(Number(runtimeProfile.maxStudents ?? this.maxStudents)));
+    student.state = "MOVING_TO_QUEUE";
+    student.queueStuckTime = 0;
+    student.lastQueueIndex = slot.index;
+    student.serviceTimer = 0;
+    student.beingServed = false;
 
-    this.spawnIntervalMin = nextMin;
-    this.spawnIntervalMax = nextMax;
-    this.burstChance = nextBurst;
-    this.maxStudents = nextMaxStudents;
-
-    if (this.nextSpawnInterval < this.spawnIntervalMin || this.nextSpawnInterval > this.spawnIntervalMax) {
-      this.nextSpawnInterval = this.rollSpawnInterval();
+    if (!this.hasRouteTarget(student, slot.x, slot.y)) {
+      this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
     }
   }
 
-  applyTimingProfile(student, stallId, { resetCurrentStallWait = false } = {}) {
-    const timingProfile = this.controller.createNpcTimingProfile
-      ? this.controller.createNpcTimingProfile(stallId)
+  assignSeatToStudent(student, seat) {
+    this.occupySeat(seat.id, student.id);
+
+    student.seatId = seat.id;
+    student.seatedSeatId = seat.id;
+    student.seatLabel = seat.label;
+    student.pendingSeat = false;
+    student.state = "MOVING_TO_SEAT";
+
+    this.setRoute(
+      student,
+      this.buildRoute(student.x, student.y, seat.actorX, seat.actorY)
+    );
+  }
+
+  completeService(student) {
+    const stallId = student.scenario.stallId;
+
+    this.activeServiceByStall.delete(stallId);
+    student.beingServed = false;
+    student.serviceTimer = 0;
+
+    const serviceResolution = this.controller.resolveNpcServiceAttempt
+      ? this.controller.resolveNpcServiceAttempt(student.scenario)
       : {
-          serviceDuration: 1.2,
-          patienceDuration: 9,
-          abandonmentDuration: 15,
-          rerouteCheckInterval: 1.6,
-          rerouteMinAdvantage: 2,
-          maxReroutes: 1,
-          abandonAtGlobalQueue: 9
+          ok: true,
+          action: "serve",
+          scenario: student.scenario
         };
 
-    student.serviceDuration = timingProfile.serviceDuration;
-    student.patienceDuration = timingProfile.patienceDuration;
-    student.abandonmentDuration = timingProfile.abandonmentDuration;
-    student.rerouteCheckInterval = timingProfile.rerouteCheckInterval;
-    student.rerouteMinAdvantage = timingProfile.rerouteMinAdvantage;
-    student.maxReroutes = timingProfile.maxReroutes;
-    student.abandonAtGlobalQueue = timingProfile.abandonAtGlobalQueue;
-    student.queueDecisionTimer = 0;
-
-    if (resetCurrentStallWait) {
-      student.currentStallWaitTime = 0;
-    }
-  }
-
-  updateQueuePatience(student, deltaTime) {
-    if (student.state !== "queueing") {
+    if (!serviceResolution.ok) {
+      this.queueSystem.leaveQueue(stallId, student.id);
+      this.routeStudentToExit(student);
       return;
     }
 
-    student.totalQueueTime += deltaTime;
-    student.currentStallWaitTime += deltaTime;
-    student.queueDecisionTimer += deltaTime;
-
-    if (student.queueDecisionTimer < student.rerouteCheckInterval) {
+    if (serviceResolution.action === "reroute") {
+      this.queueSystem.leaveQueue(stallId, student.id);
+      student.scenario = serviceResolution.scenario;
+      this.applyTimingProfile(student, student.scenario.stallId);
+      this.sendStudentToQueue(student);
       return;
     }
 
-    student.queueDecisionTimer = 0;
+    student.scenario = serviceResolution.scenario;
 
-    const decision = this.controller.resolveNpcQueuePatience
-      ? this.controller.resolveNpcQueuePatience({
-          stallId: student.scenario.stallId,
-          recipeKey: student.scenario.recipeKey,
-          totalQueueTime: student.totalQueueTime,
-          currentStallWaitTime: student.currentStallWaitTime,
-          rerouteCount: student.rerouteCount,
-          excludedStallIds: student.excludedStallIds,
-          patienceDuration: student.patienceDuration,
-          abandonmentDuration: student.abandonmentDuration,
-          rerouteMinAdvantage: student.rerouteMinAdvantage,
-          maxReroutes: student.maxReroutes,
-          abandonAtGlobalQueue: student.abandonAtGlobalQueue
-        })
-      : { action: "wait" };
+    const transaction = this.controller.processTransaction({
+      ...student.scenario,
+      source: "auto_queue"
+    });
 
-    if (!decision || decision.action === "wait") {
+    this.queueSystem.leaveQueue(stallId, student.id);
+
+    if (!transaction) {
+      this.routeStudentToExit(student);
       return;
     }
 
-    if (decision.action === "reroute") {
-      const previousStallId = student.scenario.stallId;
-      const reroutedServicePoint = this.getServicePointForStall(decision.stallId);
+    student.currentMeal = transaction.dishName;
+    student.hasMeal = true;
 
-      student.scenario = {
-        ...student.scenario,
-        stallId: decision.stallId,
-        recipeKey: decision.recipeKey
-      };
+    const seat = this.findAvailableSeat(student, this.currentPlayerOccupiedSeatId);
 
-      student.servicePointId = reroutedServicePoint.id;
-      student.waitingTarget = this.getHoldingTargetForServicePoint(reroutedServicePoint);
-      student.queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
-      student.rerouteCount += 1;
-      student.excludedStallIds = Array.from(
-        new Set([...student.excludedStallIds, previousStallId])
-      );
-
-      this.applyTimingProfile(student, decision.stallId, {
-        resetCurrentStallWait: true
-      });
-
+    if (seat) {
+      this.assignSeatToStudent(student, seat);
       return;
     }
 
-    if (decision.action === "abandon") {
-      this.setRoute(student, this.pathRouter.buildExitPath({
-        x: student.x,
-        y: student.y
-      }));
-      student.state = "exiting";
-    }
+    student.pendingSeat = true;
+    student.state = "MOVING_TO_SEAT";
+    student.route = [];
+    student.routeIndex = 0;
   }
 
   spawnStudent() {
     if (this.students.length >= this.maxStudents) return;
 
     const scenario = this.controller.createRandomTransactionScenario();
-    const identity = generateStudentIdentity();
-    const servicePoint = this.getServicePointForStall(scenario.stallId);
-
-    scenario.studentId = identity.studentId;
-    scenario.studentDisplayName = identity.displayName;
-
-    const queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
+    const identity = this.createStudentIdentityPayload();
 
     const student = {
       id: `sim_student_${this.nextStudentId++}`,
-      x: 46 + Math.random() * 26,
-      y: servicePoint.queueY + 16 + Math.random() * 26,
+      x: 34 + Math.random() * 20,
+      y: 268 + Math.random() * 26,
       size: 18,
-      speed: 92 + Math.random() * 18,
-      state: "queueing",
-      payTimer: 0,
-      eatingTimer: 0,
-      eatDuration: 7 + Math.random() * 9,
+      speed: 88 + Math.random() * 16,
+      state: "IDLE",
       remove: false,
-      hasProcessedTransaction: false,
-      scenario,
       displayName: identity.displayName,
       originType: identity.originType,
-      servicePointId: servicePoint.id,
+      color: identity.color,
+      scenario: {
+        ...scenario,
+        studentDisplayName: identity.displayName
+      },
       seatId: null,
+      seatedSeatId: null,
       seatLabel: null,
       seatPreference: this.pickSeatPreference(),
-      queueOffsetY,
-      waitingTarget: this.getHoldingTargetForServicePoint(servicePoint),
       route: [],
       routeIndex: 0,
-      totalQueueTime: 0,
-      currentStallWaitTime: 0,
-      queueDecisionTimer: 0,
-      rerouteCount: 0,
-      excludedStallIds: [],
+      queueStuckTime: 0,
+      lastQueueIndex: null,
+      serviceTimer: 0,
       serviceDuration: 1.2,
       patienceDuration: 9,
       abandonmentDuration: 15,
-      rerouteCheckInterval: 1.6,
-      rerouteMinAdvantage: 2,
-      maxReroutes: 1,
-      abandonAtGlobalQueue: 9,
-      color: identity.originType === "domestic_pinyin" ? "#60a5fa" : "#f87171"
+      eatDuration: 7 + Math.random() * 9,
+      seatedTimer: 0,
+      beingServed: false,
+      pendingSeat: false,
+      currentMeal: null,
+      hasMeal: false
     };
 
-    this.applyTimingProfile(student, scenario.stallId, {
-      resetCurrentStallWait: true
-    });
-
+    this.applyTimingProfile(student, scenario.stallId);
     this.students.push(student);
+    this.sendStudentToQueue(student);
+  }
+
+  getQueueBreakdown() {
+    return this.queueSystem.getQueueSnapshot();
+  }
+
+  updateQueueState(student, deltaTime) {
+    const assignment = this.queueSystem.getAssignment(student.id);
+
+    if (!assignment) {
+      this.routeStudentToExit(student);
+      return;
+    }
+
+    if (student.lastQueueIndex !== assignment.index) {
+      student.lastQueueIndex = assignment.index;
+      student.queueStuckTime = 0;
+    } else {
+      student.queueStuckTime += deltaTime;
+    }
+
+    if (student.queueStuckTime >= 12 && !student.beingServed) {
+      this.controller.recordAbandonedTransaction?.();
+      this.queueSystem.leaveQueue(assignment.stallId, student.id);
+      this.routeStudentToExit(student);
+      return;
+    }
+
+    if (assignment.index === 0) {
+      const servicePoint = this.queueSystem.getServicePoint(assignment.stallId);
+      const activeServiceId = this.activeServiceByStall.get(assignment.stallId);
+
+      if (!activeServiceId || activeServiceId === student.id) {
+        this.activeServiceByStall.set(assignment.stallId, student.id);
+        student.beingServed = true;
+
+        if (!this.hasRouteTarget(student, servicePoint.x, servicePoint.y)) {
+          this.setRoute(
+            student,
+            this.buildRoute(student.x, student.y, servicePoint.x, servicePoint.y)
+          );
+        }
+
+        const arrived = this.followRoute(student, deltaTime);
+
+        if (arrived) {
+          student.serviceTimer += deltaTime;
+
+          if (student.serviceTimer >= student.serviceDuration) {
+            this.completeService(student);
+          }
+        }
+
+        return;
+      }
+    }
+
+    const slot = this.queueSystem.getAssignedSlot(student.id);
+    if (!slot) {
+      this.routeStudentToExit(student);
+      return;
+    }
+
+    if (!this.hasRouteTarget(student, slot.x, slot.y)) {
+      this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
+    }
+
+    this.followRoute(student, deltaTime);
   }
 
   update(deltaTime, { playerOccupiedSeatId = null } = {}) {
+    this.currentPlayerOccupiedSeatId = playerOccupiedSeatId;
     this.syncRuntimeDemandProfile();
 
     this.spawnTimer += deltaTime;
@@ -459,209 +542,94 @@ export default class StudentDiningFlowSimulator {
     }
 
     this.students.forEach((student) => {
-      this.updateQueuePatience(student, deltaTime);
-    });
+      if (student.state === "MOVING_TO_QUEUE") {
+        const slot = this.queueSystem.getAssignedSlot(student.id);
 
-    this.servicePoints.forEach((servicePoint) => {
-      const queueingStudents = this.students.filter(
-        (student) =>
-          student.state === "queueing" &&
-          student.servicePointId === servicePoint.id
-      );
-
-      queueingStudents.forEach((student, index) => {
-        const target = this.getQueueTargetForStudent(student, index);
-        this.moveToward(student, target.x, target.y, deltaTime);
-      });
-
-      const activeServiceStudent = this.students.find(
-        (student) =>
-          student.servicePointId === servicePoint.id &&
-          (
-            student.state === "moving_to_counter" ||
-            student.state === "paying" ||
-            student.state === "waiting_for_seat"
-          )
-      );
-
-      if (!activeServiceStudent && queueingStudents.length > 0) {
-        const firstStudent = queueingStudents[0];
-        const target = this.getQueueTargetForStudent(firstStudent, 0);
-
-        const readyForService =
-          Math.abs(firstStudent.x - target.x) < 3 &&
-          Math.abs(firstStudent.y - target.y) < 3;
-
-        if (readyForService) {
-          firstStudent.state = "moving_to_counter";
-        }
-      }
-    });
-
-    this.students.forEach((student) => {
-      if (student.state === "moving_to_counter") {
-        const servicePoint = this.getServicePointForStudent(student);
-        const arrived = this.moveToward(student, servicePoint.x, servicePoint.y, deltaTime);
-
-        if (arrived) {
-          student.state = "paying";
-          student.payTimer = 0;
-        }
-
-        return;
-      }
-
-      if (student.state === "paying") {
-        student.payTimer += deltaTime;
-
-        if (student.payTimer >= student.serviceDuration && !student.hasProcessedTransaction) {
-          const serviceResolution = this.controller.resolveNpcServiceAttempt
-            ? this.controller.resolveNpcServiceAttempt(student.scenario)
-            : {
-                ok: true,
-                action: "serve",
-                scenario: student.scenario
-              };
-
-          if (!serviceResolution.ok) {
-            this.setRoute(student, this.pathRouter.buildExitPath({
-              x: student.x,
-              y: student.y
-            }));
-            student.state = "exiting";
-            return;
-          }
-
-          if (serviceResolution.action === "reroute") {
-            const previousStallId = student.scenario.stallId;
-            const reroutedServicePoint = this.getServicePointForStall(
-              serviceResolution.scenario.stallId
-            );
-
-            student.scenario = serviceResolution.scenario;
-            student.servicePointId = reroutedServicePoint.id;
-            student.waitingTarget = this.getHoldingTargetForServicePoint(reroutedServicePoint);
-            student.queueOffsetY = (Math.floor(Math.random() * 5) - 2) * 6;
-            student.rerouteCount += 1;
-            student.excludedStallIds = Array.from(
-              new Set([...student.excludedStallIds, previousStallId])
-            );
-            student.payTimer = 0;
-            student.state = "queueing";
-
-            this.applyTimingProfile(student, student.scenario.stallId, {
-              resetCurrentStallWait: true
-            });
-
-            return;
-          }
-
-          student.scenario = serviceResolution.scenario;
-
-          const transaction = this.controller.processTransaction({
-            ...student.scenario,
-            source: "auto_queue"
-          });
-
-          if (!transaction) {
-            this.setRoute(student, this.pathRouter.buildExitPath({
-              x: student.x,
-              y: student.y
-            }));
-            student.state = "exiting";
-            return;
-          }
-
-          student.hasProcessedTransaction = true;
-
-          const seat = this.findAvailableSeat(student, playerOccupiedSeatId);
-
-          if (seat) {
-            this.occupySeat(seat.id, student.id);
-            student.seatId = seat.id;
-            student.seatLabel = seat.label;
-            this.setRoute(student, this.pathRouter.buildPathToSeat(seat, {
-              x: student.x,
-              y: student.y
-            }));
-            student.state = "moving_to_seat";
-          } else {
-            student.state = "waiting_for_seat";
-          }
-        }
-
-        return;
-      }
-
-      if (student.state === "waiting_for_seat") {
-        const servicePoint = this.getServicePointForStudent(student);
-
-        if (!student.waitingTarget) {
-          student.waitingTarget = this.getHoldingTargetForServicePoint(servicePoint);
-        }
-
-        this.moveToward(
-          student,
-          student.waitingTarget.x,
-          student.waitingTarget.y,
-          deltaTime
-        );
-
-        const seat = this.findAvailableSeat(student, playerOccupiedSeatId);
-
-        if (seat) {
-          this.occupySeat(seat.id, student.id);
-          student.seatId = seat.id;
-          student.seatLabel = seat.label;
-          this.setRoute(student, this.pathRouter.buildPathToSeat(seat, {
-            x: student.x,
-            y: student.y
-          }));
-          student.state = "moving_to_seat";
-        }
-
-        return;
-      }
-
-      if (student.state === "moving_to_seat") {
-        const seat = this.getSeatById(student.seatId);
-
-        if (!seat) {
-          student.state = "waiting_for_seat";
+        if (!slot) {
+          this.routeStudentToExit(student);
           return;
+        }
+
+        if (!this.hasRouteTarget(student, slot.x, slot.y)) {
+          this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
         }
 
         const arrived = this.followRoute(student, deltaTime);
 
         if (arrived) {
-          student.state = "eating";
-          student.eatingTimer = 0;
-          student.route = [];
-          student.routeIndex = 0;
+          student.state = "IN_QUEUE";
         }
 
         return;
       }
 
-      if (student.state === "eating") {
-        student.eatingTimer += deltaTime;
+      if (student.state === "IN_QUEUE") {
+        this.updateQueueState(student, deltaTime);
+        return;
+      }
 
-        if (student.eatingTimer >= student.eatDuration) {
-          const seat = this.getSeatById(student.seatId);
+      if (student.state === "MOVING_TO_SEAT") {
+        if (!student.seatId) {
+          const seat = this.findAvailableSeat(student, playerOccupiedSeatId);
+
+          if (!seat) {
+            return;
+          }
+
+          this.assignSeatToStudent(student, seat);
+        }
+
+        const seat = this.getSeatById(student.seatId);
+        if (!seat) {
+          student.seatId = null;
+          student.seatedSeatId = null;
+          return;
+        }
+
+        if (!this.hasRouteTarget(student, seat.actorX, seat.actorY)) {
+          this.setRoute(
+            student,
+            this.buildRoute(student.x, student.y, seat.actorX, seat.actorY)
+          );
+        }
+
+        const arrived = this.followRoute(student, deltaTime);
+
+        if (arrived) {
+          student.x = seat.actorX;
+          student.y = seat.actorY;
+          student.state = "SEATED";
+          student.seatedTimer = 0;
+        }
+
+        return;
+      }
+
+      if (student.state === "SEATED") {
+        student.seatedTimer += deltaTime;
+
+        if (student.seatedTimer >= student.eatDuration) {
+          const trayDropoffX = TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 10;
+          const trayDropoffY = TRAY_RETURN_PATH[0].y;
 
           this.releaseSeat(student.seatId, student.id);
 
-          if (seat) {
-            this.setRoute(student, this.pathRouter.buildPathToTrayReturn(seat));
-          }
+          student.seatId = null;
+          student.seatedSeatId = null;
+          student.seatLabel = null;
 
-          student.state = "returning_tray";
+          this.setRoute(
+            student,
+            this.buildRoute(student.x, student.y, trayDropoffX, trayDropoffY)
+          );
+
+          student.state = "MOVING_TO_TRAY";
         }
 
         return;
       }
 
-      if (student.state === "returning_tray") {
+      if (student.state === "MOVING_TO_TRAY") {
         const arrived = this.followRoute(student, deltaTime);
 
         if (arrived) {
@@ -669,19 +637,15 @@ export default class StudentDiningFlowSimulator {
             dishName: student.scenario.recipeKey
           });
 
-          student.seatId = null;
-          student.seatLabel = null;
-          this.setRoute(student, this.pathRouter.buildExitPath({
-            x: student.x,
-            y: student.y
-          }));
-          student.state = "exiting";
+          student.hasMeal = false;
+          student.currentMeal = null;
+          this.routeStudentToExit(student);
         }
 
         return;
       }
 
-      if (student.state === "exiting") {
+      if (student.state === "DONE") {
         const exited = this.followRoute(student, deltaTime);
 
         if (exited) {
@@ -691,26 +655,14 @@ export default class StudentDiningFlowSimulator {
     });
 
     this.students = this.students.filter((student) => !student.remove);
-
     this.traySystem.update(deltaTime);
 
-    const liveQueueLength = this.students.filter((student) =>
-      student.state === "queueing" ||
-      student.state === "moving_to_counter" ||
-      student.state === "paying" ||
-      student.state === "waiting_for_seat"
-    ).length;
-
-    const seatedStudentCount = this.students.filter(
-      (student) => student.state === "eating"
-    ).length;
-
+    const queueBreakdown = this.getQueueBreakdown();
+    const liveQueueLength = Object.values(queueBreakdown).reduce((sum, value) => sum + value, 0);
+    const seatedStudentCount = this.students.filter((student) => student.state === "SEATED").length;
     const occupiedDiningSeats = this.getOccupiedSeatIds(playerOccupiedSeatId).size;
 
-    this.controller.updateOperationalMetrics(
-      liveQueueLength,
-      this.getQueueBreakdown()
-    );
+    this.controller.updateOperationalMetrics(liveQueueLength, queueBreakdown);
     this.controller.updateDiningMetrics({
       occupiedDiningSeats,
       totalDiningSeats: this.allSeats.length,
@@ -720,56 +672,29 @@ export default class StudentDiningFlowSimulator {
     });
   }
 
-  draw(ctx) {
-    ctx.save();
+  getRenderableStudents() {
+    return this.students.map((student) => {
+      let renderState = "queueing";
 
-    this.servicePoints.forEach((servicePoint) => {
-      ctx.fillStyle = servicePoint.color;
-      ctx.fillRect(servicePoint.x - 16, servicePoint.y - 16, 32, 32);
-
-      ctx.strokeStyle = "rgba(255,255,255,0.25)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(servicePoint.x - 16, servicePoint.y - 16, 32, 32);
-
-      ctx.fillStyle = "#e2e8f0";
-      ctx.font = "11px Arial";
-      ctx.fillText(servicePoint.label, servicePoint.x - 38, servicePoint.y - 22);
-    });
-
-    ctx.fillStyle = "#cbd5e1";
-    ctx.font = "14px Arial";
-    ctx.fillText("Live Service Queues", 120, 295);
-
-    this.students.forEach((student) => {
-      ctx.fillStyle = student.color;
-      ctx.fillRect(student.x, student.y, student.size, student.size);
-
-      const nameLabel =
-        student.displayName.length > 10
-          ? `${student.displayName.slice(0, 10)}...`
-          : student.displayName;
-
-      ctx.fillStyle = "#e2e8f0";
-      ctx.font = "10px Arial";
-      ctx.fillText(nameLabel, student.x - 4, student.y - 8);
-
-      if (student.state === "paying") {
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(student.x - 2, student.y - 2, student.size + 4, student.size + 4);
+      if (student.state === "IN_QUEUE" && student.beingServed) {
+        renderState = "paying";
+      } else if (student.state === "MOVING_TO_SEAT") {
+        renderState = "moving_to_seat";
+      } else if (student.state === "SEATED") {
+        renderState = "eating";
+      } else if (student.state === "MOVING_TO_TRAY") {
+        renderState = "moving_to_seat";
       }
 
-      if (student.state === "eating") {
-        const seat = this.getSeatById(student.seatId);
-        const mealY = seat?.side === "top"
-          ? student.y + student.size + 2
-          : student.y - 6;
-
-        ctx.fillStyle = "#f8fafc";
-        ctx.fillRect(student.x + 5, mealY, 8, 4);
-      }
+      return {
+        ...student,
+        state: renderState,
+        seatedSeatId: student.seatedSeatId
+      };
     });
+  }
 
-    ctx.restore();
+  draw() {
+    // rendering moved elsewhere on purpose
   }
 }

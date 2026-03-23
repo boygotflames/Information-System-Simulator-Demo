@@ -1,46 +1,61 @@
-import {
-  DINING_ROUTE_LANES,
-  TRAY_RETURN_STATION
-} from "../data/diningAreaLayout.js";
+import { AISLE_WAYPOINTS } from "../data/LayoutConstants.js";
+import { isPointBlocked } from "./CollisionSystem.js";
 
-export default class NpcPathRouter {
-  buildPathToSeat(seat, fromPoint = null) {
-    const path = [];
+function expandObstacle(obstacle, padding = 4) {
+  return {
+    x: obstacle.x - padding,
+    y: obstacle.y - padding,
+    w: obstacle.w + padding * 2,
+    h: obstacle.h + padding * 2
+  };
+}
 
-    if (fromPoint) {
-      path.push({ x: DINING_ROUTE_LANES.entryX, y: fromPoint.y });
+function segmentBlocked(fromX, fromY, toX, toY, obstacles) {
+  const expanded = obstacles.map((obstacle) => expandObstacle(obstacle, 4));
+  const distance = Math.hypot(toX - fromX, toY - fromY);
+  const steps = Math.max(2, Math.ceil(distance / 8));
+
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const x = fromX + (toX - fromX) * t;
+    const y = fromY + (toY - fromY) * t;
+
+    if (isPointBlocked(x, y, expanded)) {
+      return true;
     }
-
-    path.push(
-      { x: DINING_ROUTE_LANES.entryX, y: seat.approachY },
-      { x: seat.actorX, y: seat.approachY },
-      { x: seat.actorX, y: seat.actorY }
-    );
-
-    return path.filter((waypoint, index, items) => {
-      if (index === 0) return true;
-      const previous = items[index - 1];
-      return previous.x !== waypoint.x || previous.y !== waypoint.y;
-    });
   }
 
-  buildPathToTrayReturn(seat) {
-    const trayDropoffX = TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 10;
-    const trayTargetY = TRAY_RETURN_STATION.y + 18;
+  return false;
+}
 
-    return [
-      { x: seat.actorX, y: seat.approachY },
-      { x: trayDropoffX, y: seat.approachY },
-      { x: trayDropoffX, y: trayTargetY }
-    ];
+export function routePath(fromX, fromY, toX, toY, obstacles = []) {
+  if (!segmentBlocked(fromX, fromY, toX, toY, obstacles)) {
+    return [{ x: toX, y: toY }];
   }
 
-  buildExitPath(fromPoint = null) {
-    const startY = fromPoint?.y ?? (TRAY_RETURN_STATION.y + 18);
+  const candidateWaypoints = AISLE_WAYPOINTS
+    .slice()
+    .sort((a, b) => {
+      const scoreA =
+        Math.hypot(a.x - fromX, a.y - fromY) + Math.hypot(toX - a.x, toY - a.y);
+      const scoreB =
+        Math.hypot(b.x - fromX, b.y - fromY) + Math.hypot(toX - b.x, toY - b.y);
 
-    return [
-      { x: DINING_ROUTE_LANES.exitLaneX, y: startY },
-      { x: DINING_ROUTE_LANES.exitLaneX, y: DINING_ROUTE_LANES.exitY }
-    ];
+      return scoreA - scoreB;
+    })
+    .slice(0, 3);
+
+  for (const waypoint of candidateWaypoints) {
+    const firstBlocked = segmentBlocked(fromX, fromY, waypoint.x, waypoint.y, obstacles);
+    const secondBlocked = segmentBlocked(waypoint.x, waypoint.y, toX, toY, obstacles);
+
+    if (!firstBlocked && !secondBlocked) {
+      return [
+        { x: waypoint.x, y: waypoint.y },
+        { x: toX, y: toY }
+      ];
+    }
   }
+
+  return [{ x: toX, y: toY }];
 }

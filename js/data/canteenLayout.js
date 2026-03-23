@@ -1,51 +1,83 @@
-export const SERVICE_POINTS = {
-  ramenCounter: {
+import { CANVAS_W, LAYOUT_GRID, STALL_METRICS } from "./LayoutConstants.js";
+
+const STALL_BLUEPRINTS = [
+  {
     id: "ramen_counter",
-    x: 330,
-    y: 220,
     stallId: "ramen_stall",
-    defaultRecipeKey: "tonkotsu_ramen",
     label: "Ramen Counter",
-    queueFrontX: 250,
-    queueY: 320,
-    queueSpacing: 34,
-    holdingX: 375,
-    holdingY: 246,
+    displayName: "Ramen Stall",
+    defaultRecipeKey: "tonkotsu_ramen",
     color: "#38bdf8"
   },
-
-  dryNoodleCounter: {
+  {
     id: "dry_noodle_counter",
-    x: 555,
-    y: 220,
     stallId: "dry_noodle_stall",
-    defaultRecipeKey: "sesame_noodles",
     label: "Dry Noodle Counter",
-    queueFrontX: 475,
-    queueY: 320,
-    queueSpacing: 34,
-    holdingX: 600,
-    holdingY: 246,
+    displayName: "Dry Noodle Stall",
+    defaultRecipeKey: "sesame_noodles",
     color: "#f59e0b"
   },
-
-  soupCounter: {
+  {
     id: "soup_counter",
-    x: 780,
-    y: 220,
     stallId: "soup_station",
-    defaultRecipeKey: "egg_drop_soup",
     label: "Soup Counter",
-    queueFrontX: 700,
-    queueY: 320,
-    queueSpacing: 34,
-    holdingX: 825,
-    holdingY: 246,
+    displayName: "Soup Station",
+    defaultRecipeKey: "egg_drop_soup",
     color: "#a78bfa"
   }
-};
+];
 
-export const SERVICE_POINT_LIST = Object.values(SERVICE_POINTS);
+function buildServicePoint(definition, index) {
+  const laneWidth = CANVAS_W / STALL_METRICS.count;
+  const centerX = Math.round(laneWidth * index + laneWidth / 2);
+
+  const stallX = Math.round(centerX - STALL_METRICS.bodyW / 2);
+  const stallY =
+    LAYOUT_GRID.stallZoneY +
+    Math.round((LAYOUT_GRID.stallZoneH - STALL_METRICS.bodyH) / 2) -
+    8;
+
+  const servicePointX = centerX;
+  const servicePointY = stallY + STALL_METRICS.bodyH + STALL_METRICS.serviceOffsetY;
+
+  return {
+    ...definition,
+    x: servicePointX,
+    y: servicePointY,
+    servicePointX,
+    servicePointY,
+    queueDirection: "down",
+    queueFrontX: servicePointX,
+    queueY: servicePointY + STALL_METRICS.queueSlotSpacing,
+    queueSpacing: STALL_METRICS.queueSlotSpacing,
+    holdingX: servicePointX,
+    holdingY: servicePointY + STALL_METRICS.queueSlotSpacing,
+    stallRect: {
+      x: stallX,
+      y: stallY,
+      w: STALL_METRICS.bodyW,
+      h: STALL_METRICS.bodyH,
+      label: definition.displayName
+    }
+  };
+}
+
+export const SERVICE_POINT_LIST = STALL_BLUEPRINTS.map(buildServicePoint);
+
+export const SERVICE_POINTS = Object.fromEntries(
+  SERVICE_POINT_LIST.map((point) => [
+    point.id,
+    point
+  ])
+);
+
+export const STALL_BODY_RECTS = SERVICE_POINT_LIST.map((point) => ({
+  x: point.stallRect.x,
+  y: point.stallRect.y,
+  w: point.stallRect.w,
+  h: point.stallRect.h,
+  label: point.displayName
+}));
 
 export function getServicePointById(servicePointId) {
   return SERVICE_POINT_LIST.find((point) => point.id === servicePointId) || null;
@@ -71,7 +103,7 @@ export function getNearestServicePoint(x, y, maxDistance = 60) {
   return nearest;
 }
 
-// legacy export kept to avoid accidental breakage in untouched files
+// legacy exports kept so untouched files do not explode
 export const DINING_TABLES = [];
 
 export function getAllSeats() {

@@ -71,10 +71,13 @@ export default class CharacterRenderer {
   drawStudent(ctx, student, seatLookup) {
     const seat = student.seatedSeatId ? seatLookup.get(student.seatedSeatId) : null;
     const isSeated = Boolean(seat && student.state === "eating");
-    const hasMeal =
+    const hasMealInHand =
       student.state === "moving_to_seat" ||
-      student.state === "waiting_for_seat" ||
-      student.state === "eating";
+      student.state === "waiting_for_seat";
+
+    const mealPosition = isSeated && seat
+      ? { x: seat.mealX, y: seat.mealY }
+      : null;
 
     this.drawPerson(ctx, {
       x: student.x,
@@ -84,8 +87,8 @@ export default class CharacterRenderer {
       bodyColor: student.color,
       skinColor: this.getSkinTone(student.displayName),
       isSeated,
-      hasMeal,
-      mealSeatSide: seat?.side ?? null,
+      hasMeal: hasMealInHand || Boolean(mealPosition),
+      mealPosition,
       highlight: student.state === "paying"
     });
   }
@@ -93,6 +96,10 @@ export default class CharacterRenderer {
   drawPlayer(ctx, player, playerProfile, seatLookup) {
     const seat = player.seatedSeatId ? seatLookup.get(player.seatedSeatId) : null;
     const hasMeal = Boolean(playerProfile?.currentMeal);
+
+    const mealPosition = player.seatedSeatId && hasMeal && seat
+      ? { x: seat.mealX, y: seat.mealY }
+      : null;
 
     this.drawPerson(ctx, {
       x: player.x,
@@ -103,26 +110,10 @@ export default class CharacterRenderer {
       skinColor: PALETTE.headA,
       isSeated: Boolean(player.seatedSeatId),
       hasMeal,
-      mealSeatSide: seat?.side ?? null,
+      mealPosition,
       isPlayer: true,
       highlight: false
     });
-  }
-
-  drawPerson({
-    x,
-    y,
-    size = 18,
-    label,
-    bodyColor,
-    skinColor,
-    isSeated = false,
-    hasMeal = false,
-    mealSeatSide = null,
-    isPlayer = false,
-    highlight = false
-  }, ctx = null) {
-    // intentionally unused signature guard
   }
 
   drawPerson(ctx, config) {
@@ -135,7 +126,7 @@ export default class CharacterRenderer {
       skinColor,
       isSeated = false,
       hasMeal = false,
-      mealSeatSide = null,
+      mealPosition = null,
       isPlayer = false,
       highlight = false
     } = config;
@@ -195,9 +186,9 @@ export default class CharacterRenderer {
       let mealX = x + size + 2;
       let mealY = y + Math.round(size * 0.42);
 
-      if (isSeated) {
-        mealX = x + Math.round(size / 2) - 5;
-        mealY = mealSeatSide === "top" ? y + size + 2 : y - 8;
+      if (mealPosition) {
+        mealX = mealPosition.x;
+        mealY = mealPosition.y;
       }
 
       this.drawMealAt(ctx, mealX, mealY);
