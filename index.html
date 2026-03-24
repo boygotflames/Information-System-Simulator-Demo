@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>University Canteen IS Game</title>
-  <link rel="stylesheet" href="css/style.css?v=visual-package-v1" />
+  <link rel="stylesheet" href="css/style.css?v=layout-polish-v1" />
 </head>
 <body>
   <div class="dashboard-scrim" id="dashboardScrim"></div>
@@ -47,7 +47,19 @@
       <section class="canvas-wrapper">
         <canvas id="gameCanvas" width="960" height="540"></canvas>
 
-        <aside class="utility-panel" aria-label="Context panel">
+        <button
+          id="contextRailToggleBtn"
+          class="context-rail-toggle"
+          type="button"
+          aria-controls="contextRail"
+          aria-expanded="true"
+          aria-label="Hide context rail"
+        >
+          <span class="context-rail-toggle-icon" data-context-icon aria-hidden="true">‹</span>
+          <span class="context-rail-toggle-text">Context Rail</span>
+        </button>
+
+        <aside class="utility-panel" id="contextRail" aria-label="Context panel">
           <div class="utility-panel-header">
             <span class="panel-kicker">Context Rail</span>
             <h2>Floor Context</h2>
@@ -264,6 +276,6 @@
     </main>
   </div>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=layout-polish-v1"></script>
 </body>
 </html>

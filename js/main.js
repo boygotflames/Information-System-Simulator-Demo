@@ -14,7 +14,7 @@ import {
 } from "./data/diningAreaLayout.js";
 import TrayReturnSystem from "./systems/TrayReturnSystem.js";
 import { STATIC_OBSTACLES } from "./data/collisionLayout.js";
-import { initDashboardToggle } from "./ui/dashboardToggle.js";
+import { initDashboardToggle } from "./ui/dashboardToggle.js?v=layout-polish-v1";
 import WorldRenderer from "./rendering/WorldRenderer.js";
 import EnvironmentRenderer from "./rendering/EnvironmentRenderer.js";
 import CharacterRenderer from "./rendering/CharacterRenderer.js";
