@@ -11,6 +11,14 @@ import {
   WALL_BAND_HEIGHT,
   getCounterTheme
 } from "./visualTheme.js";
+import {
+  drawCounterSkin,
+  drawDecor,
+  drawFramedPanel,
+  drawSpriteOrFallback,
+  drawTableSkin,
+  drawTiledArea
+} from "./renderSkin.js";
 
 function formatStallLabel(stallId) {
   return stallId
@@ -44,8 +52,17 @@ function getServiceBounds(servicePoints) {
   };
 }
 
-function pointInBounds(x, y, bounds) {
-  return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+function getCounterRoleBase(stallId) {
+  switch (stallId) {
+    case "ramen_stall":
+      return "counter.ramen";
+    case "dry_noodle_stall":
+      return "counter.dry_noodle";
+    case "soup_station":
+      return "counter.soup";
+    default:
+      return null;
+  }
 }
 
 export default class EnvironmentRenderer {
@@ -155,25 +172,36 @@ export default class EnvironmentRenderer {
       ctx.fillRect(lampX - 20, 36, 40, 8);
     }
 
-    this.drawSignPlaque(ctx, 22, 18, 182, 44, "Campus Canteen", "Live operations floor");
-    this.drawSignPlaque(
-      ctx,
-      diningBounds.minX + 12,
-      diningBounds.minY + 12,
-      152,
-      30,
-      "Dining Commons",
-      "Student seating"
-    );
-    this.drawSignPlaque(
-      ctx,
-      utilityBounds.minX + 10,
-      utilityBounds.minY + 12,
-      142,
-      30,
-      "Return Corner",
-      "Tray + wash lane"
-    );
+    drawFramedPanel(ctx, {
+      x: 22,
+      y: 18,
+      width: 182,
+      height: 44,
+      title: "Campus Canteen",
+      subtitle: "Live operations floor"
+    });
+
+    drawFramedPanel(ctx, {
+      x: diningBounds.minX + 12,
+      y: diningBounds.minY + 12,
+      width: 152,
+      height: 30,
+      title: "Dining Commons",
+      subtitle: "Student seating",
+      titleSize: 14,
+      subtitleSize: 9
+    });
+
+    drawFramedPanel(ctx, {
+      x: utilityBounds.minX + 10,
+      y: utilityBounds.minY + 12,
+      width: 142,
+      height: 30,
+      title: "Return Corner",
+      subtitle: "Tray + wash lane",
+      titleSize: 14,
+      subtitleSize: 9
+    });
 
     ctx.restore();
   }
@@ -181,37 +209,23 @@ export default class EnvironmentRenderer {
   drawFloor(ctx, canvas, diningBounds, serviceBounds, utilityBounds) {
     ctx.save();
 
-    ctx.fillStyle = PALETTE.floorBase;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    for (let y = 0; y < canvas.height; y += TILE_SIZE) {
-      for (let x = 0; x < canvas.width; x += TILE_SIZE) {
-        let fill = ((x / TILE_SIZE) + (y / TILE_SIZE)) % 2 === 0
-          ? PALETTE.floorTileA
-          : PALETTE.floorTileB;
-
-        if (pointInBounds(x + 16, y + 16, serviceBounds)) {
-          fill = ((x / TILE_SIZE) + (y / TILE_SIZE)) % 2 === 0
-            ? PALETTE.serviceFloorA
-            : PALETTE.serviceFloorB;
-        } else if (pointInBounds(x + 16, y + 16, diningBounds)) {
-          fill = ((x / TILE_SIZE) + (y / TILE_SIZE)) % 2 === 0
-            ? PALETTE.diningFloorA
-            : PALETTE.diningFloorB;
-        } else if (pointInBounds(x + 16, y + 16, utilityBounds)) {
-          fill = ((x / TILE_SIZE) + (y / TILE_SIZE)) % 2 === 0
-            ? PALETTE.utilityFloorA
-            : PALETTE.utilityFloorB;
-        }
-
-        ctx.fillStyle = fill;
-        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
-        ctx.fillStyle = PALETTE.floorSpeck;
-        ctx.fillRect(x + 6, y + 7, 2, 2);
-        ctx.fillRect(x + 21, y + 18, 2, 2);
+    drawTiledArea(ctx, {
+      role: "floor.base",
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: canvas.height,
+      tileWidth: TILE_SIZE,
+      originX: 0,
+      originY: 0,
+      drawFallbackTile: ({ tileX, tileY }) => {
+        this.drawFloorTileFallback(ctx, tileX, tileY, PALETTE.floorTileA, PALETTE.floorTileB);
       }
-    }
+    });
+
+    this.drawFloorZone(ctx, serviceBounds, "floor.service", PALETTE.serviceFloorA, PALETTE.serviceFloorB);
+    this.drawFloorZone(ctx, diningBounds, "floor.dining", PALETTE.diningFloorA, PALETTE.diningFloorB);
+    this.drawFloorZone(ctx, utilityBounds, "floor.utility", PALETTE.utilityFloorA, PALETTE.utilityFloorB);
 
     ctx.strokeStyle = PALETTE.floorGrid;
     ctx.lineWidth = 1;
@@ -258,6 +272,35 @@ export default class EnvironmentRenderer {
     ctx.restore();
   }
 
+  drawFloorZone(ctx, bounds, role, primaryColor, secondaryColor) {
+    drawTiledArea(ctx, {
+      role,
+      x: bounds.minX,
+      y: bounds.minY,
+      width: bounds.maxX - bounds.minX,
+      height: bounds.maxY - bounds.minY,
+      tileWidth: TILE_SIZE,
+      originX: 0,
+      originY: 0,
+      drawFallbackTile: ({ tileX, tileY }) => {
+        this.drawFloorTileFallback(ctx, tileX, tileY, primaryColor, secondaryColor);
+      }
+    });
+  }
+
+  drawFloorTileFallback(ctx, tileX, tileY, primaryColor, secondaryColor) {
+    const fill = ((tileX / TILE_SIZE) + (tileY / TILE_SIZE)) % 2 === 0
+      ? primaryColor
+      : secondaryColor;
+
+    ctx.fillStyle = fill;
+    ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+
+    ctx.fillStyle = PALETTE.floorSpeck;
+    ctx.fillRect(tileX + 6, tileY + 7, 2, 2);
+    ctx.fillRect(tileX + 21, tileY + 18, 2, 2);
+  }
+
   drawQueueLanes(ctx, servicePoints) {
     ctx.save();
 
@@ -275,22 +318,35 @@ export default class EnvironmentRenderer {
         const markerX = point.queueFrontX;
         const markerY = point.queueY + i * point.queueSpacing;
 
-        ctx.fillStyle = PALETTE.queueLaneSoft;
-        ctx.fillRect(markerX - 13, markerY - 13, 26, 26);
-
-        ctx.fillStyle = PALETTE.queuePad;
-        ctx.fillRect(markerX - 9, markerY - 9, 18, 18);
-
-        ctx.strokeStyle = PALETTE.queuePadEdge;
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(markerX - 9, markerY - 9, 18, 18);
-
-        ctx.fillStyle = "rgba(255,255,255,0.14)";
-        ctx.fillRect(markerX - 3, markerY - 6, 6, 12);
+        drawDecor(ctx, {
+          role: "queue.slot",
+          x: markerX - 13,
+          y: markerY - 13,
+          width: 26,
+          height: 26,
+          drawFallback: () => {
+            this.drawQueuePadFallback(ctx, markerX, markerY);
+          }
+        });
       }
     });
 
     ctx.restore();
+  }
+
+  drawQueuePadFallback(ctx, markerX, markerY) {
+    ctx.fillStyle = PALETTE.queueLaneSoft;
+    ctx.fillRect(markerX - 13, markerY - 13, 26, 26);
+
+    ctx.fillStyle = PALETTE.queuePad;
+    ctx.fillRect(markerX - 9, markerY - 9, 18, 18);
+
+    ctx.strokeStyle = PALETTE.queuePadEdge;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(markerX - 9, markerY - 9, 18, 18);
+
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.fillRect(markerX - 3, markerY - 6, 6, 12);
   }
 
   drawCounters(ctx, servicePoints) {
@@ -303,6 +359,7 @@ export default class EnvironmentRenderer {
       const smallCounterY = point.y - Math.floor(SERVICE_BLOCK_SIZE / 2);
       const signY = stallY - 24;
       const theme = getCounterTheme(point.color);
+      const roleBase = getCounterRoleBase(point.stallId);
 
       this.shadowRenderer.drawSoftRectShadow(
         ctx,
@@ -313,51 +370,31 @@ export default class EnvironmentRenderer {
         { offsetX: 12, offsetY: 12, alpha: 0.16 }
       );
 
-      ctx.fillStyle = PALETTE.plaque;
-      ctx.fillRect(stallX - 10, stallY - 18, STALL_BLOCK_WIDTH + 20, 12);
-
-      ctx.fillStyle = theme.sign;
-      ctx.fillRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
-      ctx.strokeStyle = PALETTE.plaqueStroke;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
-
-      ctx.fillStyle = theme.top;
-      ctx.fillRect(stallX, stallY, STALL_BLOCK_WIDTH, STALL_BLOCK_HEIGHT);
-
-      ctx.fillStyle = theme.stripe;
-      ctx.fillRect(stallX + 6, stallY + 8, STALL_BLOCK_WIDTH - 12, 12);
-
-      ctx.fillStyle = theme.front;
-      ctx.fillRect(stallX, stallY + STALL_BLOCK_HEIGHT, STALL_BLOCK_WIDTH, COUNTER_DEPTH);
-
-      ctx.fillStyle = theme.edge;
-      ctx.fillRect(stallX, stallY + STALL_BLOCK_HEIGHT + COUNTER_DEPTH - 4, STALL_BLOCK_WIDTH, 4);
-
-      ctx.fillStyle = "rgba(255,255,255,0.12)";
-      ctx.fillRect(stallX + 10, stallY + 28, STALL_BLOCK_WIDTH - 20, 2);
-      ctx.fillRect(stallX + 10, stallY + 40, STALL_BLOCK_WIDTH - 20, 2);
-
-      ctx.strokeStyle = PALETTE.outline;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(stallX, stallY, STALL_BLOCK_WIDTH, STALL_BLOCK_HEIGHT);
-      ctx.strokeRect(stallX, stallY + STALL_BLOCK_HEIGHT, STALL_BLOCK_WIDTH, COUNTER_DEPTH);
-
-      ctx.fillStyle = theme.trim;
-      ctx.fillRect(smallCounterX, smallCounterY, SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE);
-
-      ctx.fillStyle = theme.edge;
-      ctx.fillRect(smallCounterX, smallCounterY + SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE, 10);
-
-      ctx.fillStyle = theme.glow;
-      ctx.globalAlpha = 0.22;
-      ctx.fillRect(smallCounterX - 6, smallCounterY - 6, SERVICE_BLOCK_SIZE + 12, 10);
-      ctx.globalAlpha = 1;
-
-      ctx.strokeStyle = PALETTE.outline;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(smallCounterX, smallCounterY, SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE);
-      ctx.strokeRect(smallCounterX, smallCounterY + SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE, 10);
+      drawCounterSkin(ctx, {
+        bodyRole: roleBase ? `${roleBase}.body` : null,
+        signRole: roleBase ? `${roleBase}.sign` : null,
+        serviceRole: roleBase ? `${roleBase}.service` : null,
+        x: stallX,
+        y: stallY,
+        width: STALL_BLOCK_WIDTH,
+        height: STALL_BLOCK_HEIGHT,
+        frontDepth: COUNTER_DEPTH,
+        signBox: {
+          x: stallX + 10,
+          y: signY,
+          width: STALL_BLOCK_WIDTH - 20,
+          height: 18
+        },
+        serviceBox: {
+          x: smallCounterX,
+          y: smallCounterY,
+          width: SERVICE_BLOCK_SIZE,
+          height: SERVICE_BLOCK_SIZE + 10
+        },
+        drawFallback: () => {
+          this.drawCounterFallback(ctx, theme, stallX, stallY, signY, smallCounterX, smallCounterY);
+        }
+      });
 
       ctx.fillStyle = PALETTE.label;
       ctx.font = `700 17px ${DISPLAY_FONT_FAMILY}`;
@@ -374,74 +411,163 @@ export default class EnvironmentRenderer {
     ctx.restore();
   }
 
+  drawCounterFallback(ctx, theme, stallX, stallY, signY, smallCounterX, smallCounterY) {
+    ctx.fillStyle = PALETTE.plaque;
+    ctx.fillRect(stallX - 10, stallY - 18, STALL_BLOCK_WIDTH + 20, 12);
+
+    ctx.fillStyle = theme.sign;
+    ctx.fillRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
+    ctx.strokeStyle = PALETTE.plaqueStroke;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
+
+    ctx.fillStyle = theme.top;
+    ctx.fillRect(stallX, stallY, STALL_BLOCK_WIDTH, STALL_BLOCK_HEIGHT);
+
+    ctx.fillStyle = theme.stripe;
+    ctx.fillRect(stallX + 6, stallY + 8, STALL_BLOCK_WIDTH - 12, 12);
+
+    ctx.fillStyle = theme.front;
+    ctx.fillRect(stallX, stallY + STALL_BLOCK_HEIGHT, STALL_BLOCK_WIDTH, COUNTER_DEPTH);
+
+    ctx.fillStyle = theme.edge;
+    ctx.fillRect(stallX, stallY + STALL_BLOCK_HEIGHT + COUNTER_DEPTH - 4, STALL_BLOCK_WIDTH, 4);
+
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(stallX + 10, stallY + 28, STALL_BLOCK_WIDTH - 20, 2);
+    ctx.fillRect(stallX + 10, stallY + 40, STALL_BLOCK_WIDTH - 20, 2);
+
+    ctx.strokeStyle = PALETTE.outline;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(stallX, stallY, STALL_BLOCK_WIDTH, STALL_BLOCK_HEIGHT);
+    ctx.strokeRect(stallX, stallY + STALL_BLOCK_HEIGHT, STALL_BLOCK_WIDTH, COUNTER_DEPTH);
+
+    ctx.fillStyle = theme.trim;
+    ctx.fillRect(smallCounterX, smallCounterY, SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE);
+
+    ctx.fillStyle = theme.edge;
+    ctx.fillRect(smallCounterX, smallCounterY + SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE, 10);
+
+    ctx.fillStyle = theme.glow;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(smallCounterX - 6, smallCounterY - 6, SERVICE_BLOCK_SIZE + 12, 10);
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = PALETTE.outline;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(smallCounterX, smallCounterY, SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE);
+    ctx.strokeRect(smallCounterX, smallCounterY + SERVICE_BLOCK_SIZE, SERVICE_BLOCK_SIZE, 10);
+  }
+
   drawDiningTableTops(ctx, diningTables, occupiedSeatIds, playerSeatId) {
     ctx.save();
 
     diningTables.forEach((table) => {
       this.shadowRenderer.drawTableShadow(ctx, table.x, table.y, table.width, table.height);
 
-      ctx.fillStyle = PALETTE.tableTop;
-      ctx.fillRect(table.x, table.y, table.width, table.height);
-
-      ctx.fillStyle = PALETTE.tableInset;
-      ctx.fillRect(table.x + 8, table.y + 6, table.width - 16, table.height - 16);
-
-      ctx.fillStyle = "rgba(255,255,255,0.18)";
-      ctx.fillRect(table.x + 10, table.y + 8, table.width - 20, 4);
-
-      ctx.strokeStyle = PALETTE.tableEdge;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(table.x, table.y, table.width, table.height);
+      drawTableSkin(ctx, {
+        phase: "top",
+        x: table.x,
+        y: table.y,
+        width: table.width,
+        height: table.height,
+        frontDepth: TABLE_DEPTH,
+        drawFallback: () => {
+          this.drawDiningTableTopFallback(ctx, table);
+        }
+      });
 
       table.seats.forEach((seat) => {
         const isPlayerSeat = playerSeatId === seat.id;
         const isOccupied = occupiedSeatIds.has(seat.id);
 
-        ctx.fillStyle = PALETTE.seatBack;
-        ctx.fillRect(seat.x, seat.y + seat.height - 2, seat.width, 4);
-
-        ctx.fillStyle = isPlayerSeat
-          ? PALETTE.seatPlayer
-          : isOccupied
-            ? PALETTE.seatNpc
-            : PALETTE.seatFree;
-        ctx.fillRect(seat.x, seat.y, seat.width, seat.height - 2);
-
-        ctx.fillStyle = "rgba(255,255,255,0.22)";
-        ctx.fillRect(seat.x + 2, seat.y + 1, seat.width - 4, 2);
-
-        ctx.strokeStyle = PALETTE.outline;
-        ctx.lineWidth = 1.4;
-        ctx.strokeRect(seat.x, seat.y, seat.width, seat.height);
-
-        ctx.fillStyle = "rgba(255,255,255,0.14)";
-        ctx.fillRect(seat.mealX, seat.mealY, 10, 4);
+        drawSpriteOrFallback(ctx, {
+          role: "chair.visible",
+          x: seat.x,
+          y: seat.y,
+          width: seat.width,
+          height: seat.height + 2,
+          drawFallback: () => {
+            this.drawSeatFallback(ctx, seat, isPlayerSeat, isOccupied);
+          }
+        });
       });
     });
 
     ctx.restore();
   }
 
+  drawDiningTableTopFallback(ctx, table) {
+    ctx.fillStyle = PALETTE.tableTop;
+    ctx.fillRect(table.x, table.y, table.width, table.height);
+
+    ctx.fillStyle = PALETTE.tableInset;
+    ctx.fillRect(table.x + 8, table.y + 6, table.width - 16, table.height - 16);
+
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(table.x + 10, table.y + 8, table.width - 20, 4);
+
+    ctx.strokeStyle = PALETTE.tableEdge;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(table.x, table.y, table.width, table.height);
+  }
+
+  drawSeatFallback(ctx, seat, isPlayerSeat, isOccupied) {
+    ctx.fillStyle = PALETTE.seatBack;
+    ctx.fillRect(seat.x, seat.y + seat.height - 2, seat.width, 4);
+
+    ctx.fillStyle = isPlayerSeat
+      ? PALETTE.seatPlayer
+      : isOccupied
+        ? PALETTE.seatNpc
+        : PALETTE.seatFree;
+    ctx.fillRect(seat.x, seat.y, seat.width, seat.height - 2);
+
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(seat.x + 2, seat.y + 1, seat.width - 4, 2);
+
+    ctx.strokeStyle = PALETTE.outline;
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(seat.x, seat.y, seat.width, seat.height);
+
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.fillRect(seat.mealX, seat.mealY, 10, 4);
+  }
+
   drawDiningTableFronts(ctx, diningTables) {
     ctx.save();
 
     diningTables.forEach((table) => {
-      ctx.fillStyle = PALETTE.tableFront;
-      ctx.fillRect(table.x, table.y + table.height, table.width, TABLE_DEPTH);
-
-      ctx.fillStyle = PALETTE.tableLeg;
-      ctx.fillRect(table.x + 8, table.y + table.height + 2, 8, TABLE_DEPTH - 2);
-      ctx.fillRect(table.x + table.width - 16, table.y + table.height + 2, 8, TABLE_DEPTH - 2);
-
-      ctx.fillStyle = "rgba(0,0,0,0.12)";
-      ctx.fillRect(table.x, table.y + table.height + TABLE_DEPTH - 4, table.width, 4);
-
-      ctx.strokeStyle = PALETTE.tableEdge;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(table.x, table.y + table.height, table.width, TABLE_DEPTH);
+      drawTableSkin(ctx, {
+        phase: "front",
+        x: table.x,
+        y: table.y,
+        width: table.width,
+        height: table.height,
+        frontDepth: TABLE_DEPTH,
+        drawFallback: () => {
+          this.drawDiningTableFrontFallback(ctx, table);
+        }
+      });
     });
 
     ctx.restore();
+  }
+
+  drawDiningTableFrontFallback(ctx, table) {
+    ctx.fillStyle = PALETTE.tableFront;
+    ctx.fillRect(table.x, table.y + table.height, table.width, TABLE_DEPTH);
+
+    ctx.fillStyle = PALETTE.tableLeg;
+    ctx.fillRect(table.x + 8, table.y + table.height + 2, 8, TABLE_DEPTH - 2);
+    ctx.fillRect(table.x + table.width - 16, table.y + table.height + 2, 8, TABLE_DEPTH - 2);
+
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fillRect(table.x, table.y + table.height + TABLE_DEPTH - 4, table.width, 4);
+
+    ctx.strokeStyle = PALETTE.tableEdge;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(table.x, table.y + table.height, table.width, TABLE_DEPTH);
   }
 
   drawTrayStations(ctx, trayReturnStation, washingArea, trayPath, trayDropSlots) {
@@ -457,12 +583,16 @@ export default class EnvironmentRenderer {
     ctx.stroke();
 
     trayDropSlots.forEach((slot, index) => {
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.fillRect(slot.x - 10, slot.y - 10, 20, 20);
-
-      ctx.strokeStyle = index === 1 ? PALETTE.divider : PALETTE.queuePadEdge;
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(slot.x - 10, slot.y - 10, 20, 20);
+      drawDecor(ctx, {
+        role: "tray.slot",
+        x: slot.x - 10,
+        y: slot.y - 10,
+        width: 20,
+        height: 20,
+        drawFallback: () => {
+          this.drawTraySlotFallback(ctx, slot, index);
+        }
+      });
     });
 
     this.shadowRenderer.drawSoftRectShadow(
@@ -474,6 +604,60 @@ export default class EnvironmentRenderer {
       { offsetX: 10, offsetY: 12, alpha: 0.18 }
     );
 
+    drawSpriteOrFallback(ctx, {
+      role: "tray.return",
+      x: trayReturnStation.x,
+      y: trayReturnStation.y,
+      width: trayReturnStation.width,
+      height: trayReturnStation.height + 14,
+      drawFallback: () => {
+        this.drawTrayReturnFallback(ctx, trayReturnStation);
+      }
+    });
+
+    this.shadowRenderer.drawSoftRectShadow(
+      ctx,
+      washingArea.x,
+      washingArea.y,
+      washingArea.width,
+      washingArea.height + 16,
+      { offsetX: 10, offsetY: 10, alpha: 0.18 }
+    );
+
+    drawSpriteOrFallback(ctx, {
+      role: "wash.station",
+      x: washingArea.x,
+      y: washingArea.y,
+      width: washingArea.width,
+      height: washingArea.height + 16,
+      drawFallback: () => {
+        this.drawWashStationFallback(ctx, washingArea);
+      }
+    });
+
+    ctx.fillStyle = PALETTE.label;
+    ctx.font = `700 14px ${DISPLAY_FONT_FAMILY}`;
+    ctx.fillText("Tray Return", trayReturnStation.x - 24, trayReturnStation.y - 14);
+    ctx.fillText("Wash Station", washingArea.x - 12, washingArea.y - 14);
+
+    ctx.fillStyle = PALETTE.subLabel;
+    ctx.font = `600 10px ${UI_FONT_FAMILY}`;
+    ctx.fillText("Drop point", trayReturnStation.x - 18, trayReturnStation.y - 2);
+    ctx.fillText("Rinse + cycle", washingArea.x - 2, washingArea.y - 2);
+
+    ctx.restore();
+  }
+
+  drawTraySlotFallback(ctx, slot, index) {
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(slot.x - 10, slot.y - 10, 20, 20);
+
+    ctx.strokeStyle = index === 1 ? PALETTE.divider : PALETTE.queuePadEdge;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(slot.x - 10, slot.y - 10, 20, 20);
+  }
+
+  drawTrayReturnFallback(ctx, trayReturnStation) {
     ctx.fillStyle = PALETTE.returnTop;
     ctx.fillRect(
       trayReturnStation.x,
@@ -508,16 +692,9 @@ export default class EnvironmentRenderer {
       trayReturnStation.width,
       14
     );
+  }
 
-    this.shadowRenderer.drawSoftRectShadow(
-      ctx,
-      washingArea.x,
-      washingArea.y,
-      washingArea.width,
-      washingArea.height + 16,
-      { offsetX: 10, offsetY: 10, alpha: 0.18 }
-    );
-
+  drawWashStationFallback(ctx, washingArea) {
     ctx.fillStyle = PALETTE.washingTop;
     ctx.fillRect(washingArea.x, washingArea.y, washingArea.width, washingArea.height);
 
@@ -533,28 +710,65 @@ export default class EnvironmentRenderer {
     ctx.lineWidth = 2;
     ctx.strokeRect(washingArea.x, washingArea.y, washingArea.width, washingArea.height);
     ctx.strokeRect(washingArea.x, washingArea.y + washingArea.height, washingArea.width, 16);
-
-    ctx.fillStyle = PALETTE.label;
-    ctx.font = `700 14px ${DISPLAY_FONT_FAMILY}`;
-    ctx.fillText("Tray Return", trayReturnStation.x - 24, trayReturnStation.y - 14);
-    ctx.fillText("Wash Station", washingArea.x - 12, washingArea.y - 14);
-
-    ctx.fillStyle = PALETTE.subLabel;
-    ctx.font = `600 10px ${UI_FONT_FAMILY}`;
-    ctx.fillText("Drop point", trayReturnStation.x - 18, trayReturnStation.y - 2);
-    ctx.fillText("Rinse + cycle", washingArea.x - 2, washingArea.y - 2);
-
-    ctx.restore();
   }
 
   drawAmbientLife(ctx, canvas, time) {
     ctx.save();
 
-    this.drawPlant(ctx, 48, 110, 1);
-    this.drawPlant(ctx, canvas.width - 96, 118, 0.9);
-    this.drawPoster(ctx, 698, 24, 96, 38, "OPEN LAB", "Queue data live");
-    this.drawPoster(ctx, 810, 24, 108, 38, "CAMPUS SPECIAL", "Fresh soup today");
-    this.drawCat(ctx, 52, canvas.height - 62, time);
+    drawDecor(ctx, {
+      role: "plant.small",
+      x: 48,
+      y: 110,
+      width: 22,
+      height: 34,
+      drawFallback: () => {
+        this.drawPlant(ctx, 48, 110, 1);
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "plant.small",
+      x: canvas.width - 96,
+      y: 118,
+      width: 20,
+      height: 30,
+      drawFallback: () => {
+        this.drawPlant(ctx, canvas.width - 96, 118, 0.9);
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "poster.open_lab",
+      x: 698,
+      y: 24,
+      width: 96,
+      height: 38,
+      drawFallback: () => {
+        this.drawPoster(ctx, 698, 24, 96, 38, "OPEN LAB", "Queue data live");
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "poster.campus_special",
+      x: 810,
+      y: 24,
+      width: 108,
+      height: 38,
+      drawFallback: () => {
+        this.drawPoster(ctx, 810, 24, 108, 38, "CAMPUS SPECIAL", "Fresh soup today");
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "cat.ambient",
+      x: 52,
+      y: canvas.height - 62,
+      width: 34,
+      height: 22,
+      drawFallback: () => {
+        this.drawCat(ctx, 52, canvas.height - 62, time);
+      }
+    });
 
     ctx.restore();
   }
@@ -615,19 +829,13 @@ export default class EnvironmentRenderer {
   }
 
   drawSignPlaque(ctx, x, y, width, height, title, subtitle) {
-    ctx.fillStyle = PALETTE.plaque;
-    ctx.fillRect(x, y, width, height);
-
-    ctx.strokeStyle = PALETTE.plaqueStroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, width, height);
-
-    ctx.fillStyle = PALETTE.label;
-    ctx.font = `700 16px ${DISPLAY_FONT_FAMILY}`;
-    ctx.fillText(title, x + 10, y + 18);
-
-    ctx.fillStyle = PALETTE.subLabel;
-    ctx.font = `600 10px ${UI_FONT_FAMILY}`;
-    ctx.fillText(subtitle, x + 10, y + height - 8);
+    drawFramedPanel(ctx, {
+      x,
+      y,
+      width,
+      height,
+      title,
+      subtitle
+    });
   }
 }

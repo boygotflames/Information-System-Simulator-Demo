@@ -19,6 +19,7 @@ import WorldRenderer from "./rendering/WorldRenderer.js";
 import EnvironmentRenderer from "./rendering/EnvironmentRenderer.js";
 import CharacterRenderer from "./rendering/CharacterRenderer.js";
 import ShadowRenderer from "./rendering/ShadowRenderer.js";
+import { preloadSprites } from "./rendering/spriteLoader.js";
 
 const simulateBtn = document.getElementById("simulateTransactionBtn");
 const managerModeBtn = document.getElementById("managerModeBtn");
@@ -30,6 +31,7 @@ const ctx = canvas.getContext("2d");
 const controller = new InformationSystemController();
 controller.bootstrapDashboard();
 initDashboardToggle();
+preloadSprites().catch(() => {});
 
 const inspector = new CanvasInspector(canvas, INSPECTABLES);
 const traySystem = new TrayReturnSystem();
