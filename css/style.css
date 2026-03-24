@@ -22,6 +22,11 @@
   --radius: 22px;
   --radius-md: 16px;
   --radius-sm: 12px;
+  --ui-panel-frame: url("../assets/sprites/ui/Kenny/9-Slice/space.png");
+  --ui-card-frame: url("../assets/sprites/ui/Kenny/9-Slice/space_inlay.png");
+  --ui-button-primary: url("../assets/sprites/ui/Kenny/9-Slice/Colored/blue.png");
+  --ui-button-secondary: url("../assets/sprites/ui/Kenny/9-Slice/Colored/yellow.png");
+  --ui-button-ghost: url("../assets/sprites/ui/Kenny/9-Slice/Outline/blue.png");
 }
 
 * {
@@ -63,6 +68,7 @@ button {
 }
 
 .topbar {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -73,6 +79,22 @@ button {
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
+}
+
+.topbar::before,
+.utility-panel::before,
+.dashboard-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 12px solid transparent;
+  border-image-source: var(--ui-panel-frame);
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  pointer-events: none;
+  opacity: 0.42;
+  image-rendering: pixelated;
 }
 
 .topbar-brand {
@@ -94,10 +116,15 @@ button {
 }
 
 .brand-pill {
-  padding: 8px 11px;
-  border-radius: 999px;
+  position: relative;
+  padding: 10px 14px;
+  border: 8px solid transparent;
+  border-image-source: var(--ui-button-secondary);
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   color: #0a1620;
-  background: linear-gradient(135deg, var(--accent-2), #ffe3a5);
+  background: transparent;
   white-space: nowrap;
 }
 
@@ -157,31 +184,36 @@ button {
 
 .action-btn,
 .panel-toggle-btn {
-  border-radius: 999px;
   padding: 8px 12px;
   font-weight: 700;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.07);
+  background: transparent;
+  border: 8px solid transparent;
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
 }
 
 .action-primary {
-  background: linear-gradient(135deg, #5bd1ff, #86edda);
+  border-image-source: var(--ui-button-primary);
   color: #09131d;
 }
 
 .action-secondary {
-  background: linear-gradient(135deg, #f6cb7d, #ffab72);
+  border-image-source: var(--ui-button-secondary);
   color: #09131d;
 }
 
 .action-ghost,
 .panel-toggle-btn {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.08);
+  border-image-source: var(--ui-button-ghost);
+  color: #294766;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(20, 38, 56, 0.1);
 }
 
 .panel-toggle-btn {
-  color: var(--accent-2);
+  color: #31506f;
 }
 
 .icon-btn {
@@ -190,11 +222,16 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   color: var(--text);
-  border-color: rgba(255, 255, 255, 0.1);
+  border: 8px solid transparent;
+  border-image-source: var(--ui-button-ghost);
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   font-size: 1.15rem;
+  color: #294766;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .canvas-wrapper {
@@ -267,8 +304,11 @@ body.context-rail-collapsed .utility-panel {
   gap: 8px;
   width: 34px;
   padding: 10px 7px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 8px solid transparent;
+  border-image-source: var(--ui-button-ghost);
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   background: rgba(10, 21, 34, 0.92);
   color: var(--accent-2);
   box-shadow: var(--shadow);
@@ -352,11 +392,29 @@ body.context-rail-collapsed .context-rail-toggle {
 }
 
 .card {
+  position: relative;
   background: linear-gradient(180deg, var(--card), var(--card-2));
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 11px;
   min-width: 0;
+}
+
+.card::before,
+.stat-card::before,
+.hud-chip::before,
+.hint-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 10px solid transparent;
+  border-image-source: var(--ui-card-frame);
+  border-image-slice: 12 fill;
+  border-image-width: 10px;
+  border-image-repeat: stretch;
+  pointer-events: none;
+  opacity: 0.48;
+  image-rendering: pixelated;
 }
 
 .stack {
@@ -424,10 +482,14 @@ body.context-rail-collapsed .context-rail-toggle {
 }
 
 .hint-pill {
+  position: relative;
   padding: 8px 10px;
-  border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 8px solid transparent;
+  border-image-source: var(--ui-card-frame);
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   font-size: 0.76rem;
   color: var(--text);
 }
@@ -484,6 +546,7 @@ body.dashboard-open .dashboard-panel {
 }
 
 .stat-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -553,14 +616,18 @@ body.dashboard-open .dashboard-panel {
 }
 
 .hud-chip {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 128px;
   padding: 8px 11px;
-  border-radius: 14px;
   background: rgba(7, 17, 28, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 8px solid transparent;
+  border-image-source: var(--ui-card-frame);
+  border-image-slice: 12 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   color: var(--text);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
   font-size: 0.72rem;

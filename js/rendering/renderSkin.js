@@ -1,12 +1,136 @@
 import PALETTE from "./palette.js";
 import { DISPLAY_FONT_FAMILY, UI_FONT_FAMILY } from "./visualTheme.js";
 import { getSprite } from "./spriteLoader.js";
+import { getSpriteDefinition } from "./spriteRegistry.js";
 
-function drawImage(ctx, image, x, y, width, height, alpha = 1, smoothing = false) {
+const preparedRoleCache = new Map();
+
+function createWorkingCanvas(width, height) {
+  if (typeof OffscreenCanvas !== "undefined") {
+    return new OffscreenCanvas(width, height);
+  }
+
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+
+  return null;
+}
+
+function applyChromaKey(canvas, chromaKey) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const { r, g, b, tolerance = 8 } = chromaKey;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const deltaR = Math.abs(data[index] - r);
+    const deltaG = Math.abs(data[index + 1] - g);
+    const deltaB = Math.abs(data[index + 2] - b);
+
+    if (deltaR <= tolerance && deltaG <= tolerance && deltaB <= tolerance) {
+      data[index + 3] = 0;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function getResolvedSpriteData(roleOrPath) {
+  if (!roleOrPath) {
+    return null;
+  }
+
+  if (roleOrPath.includes("/")) {
+    const image = getSprite(roleOrPath);
+    return image ? { image, source: null } : null;
+  }
+
+  const definition = getSpriteDefinition(roleOrPath);
+  if (!definition?.path) {
+    return null;
+  }
+
+  const image = getSprite(definition.path);
+  if (!image) {
+    return null;
+  }
+
+  if (definition.chromaKey) {
+    if (preparedRoleCache.has(roleOrPath)) {
+      return {
+        image: preparedRoleCache.get(roleOrPath),
+        source: null
+      };
+    }
+
+    const source = definition.source || { x: 0, y: 0, w: image.width, h: image.height };
+    const workingCanvas = createWorkingCanvas(source.w, source.h);
+
+    if (!workingCanvas) {
+      return {
+        image,
+        source
+      };
+    }
+
+    const workingContext = workingCanvas.getContext("2d", { willReadFrequently: true });
+    workingContext.drawImage(
+      image,
+      source.x,
+      source.y,
+      source.w,
+      source.h,
+      0,
+      0,
+      source.w,
+      source.h
+    );
+    applyChromaKey(workingCanvas, definition.chromaKey);
+    preparedRoleCache.set(roleOrPath, workingCanvas);
+
+    return {
+      image: workingCanvas,
+      source: null
+    };
+  }
+
+  return {
+    image,
+    source: definition.source || null
+  };
+}
+
+function drawImage(ctx, image, x, y, width, height, options = {}) {
+  const {
+    alpha = 1,
+    smoothing = false,
+    source = null
+  } = options;
+
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.imageSmoothingEnabled = smoothing;
-  ctx.drawImage(image, x, y, width, height);
+
+  if (source) {
+    ctx.drawImage(
+      image,
+      source.x,
+      source.y,
+      source.w,
+      source.h,
+      x,
+      y,
+      width,
+      height
+    );
+  } else {
+    ctx.drawImage(image, x, y, width, height);
+  }
+
   ctx.restore();
 }
 
@@ -22,9 +146,13 @@ export function drawSpriteOrFallback(ctx, options) {
     drawFallback = null
   } = options;
 
-  const image = getSprite(role);
-  if (image) {
-    drawImage(ctx, image, x, y, width, height, alpha, smoothing);
+  const spriteData = getResolvedSpriteData(role);
+  if (spriteData?.image) {
+    drawImage(ctx, spriteData.image, x, y, width, height, {
+      alpha,
+      smoothing,
+      source: spriteData.source
+    });
     return true;
   }
 
@@ -50,7 +178,7 @@ export function drawTiledArea(ctx, options) {
     drawFallbackTile = null
   } = options;
 
-  const image = getSprite(role);
+  const spriteData = getResolvedSpriteData(role);
   const startX = originX + Math.floor((x - originX) / tileWidth) * tileWidth;
   const startY = originY + Math.floor((y - originY) / tileHeight) * tileHeight;
 
@@ -61,8 +189,12 @@ export function drawTiledArea(ctx, options) {
 
   for (let tileY = startY; tileY < y + height; tileY += tileHeight) {
     for (let tileX = startX; tileX < x + width; tileX += tileWidth) {
-      if (image) {
-        drawImage(ctx, image, tileX, tileY, tileWidth, tileHeight, 1, smoothing);
+      if (spriteData?.image) {
+        drawImage(ctx, spriteData.image, tileX, tileY, tileWidth, tileHeight, {
+          alpha: 1,
+          smoothing,
+          source: spriteData.source
+        });
       } else if (typeof drawFallbackTile === "function") {
         drawFallbackTile({ tileX, tileY, tileWidth, tileHeight });
       }
@@ -70,7 +202,7 @@ export function drawTiledArea(ctx, options) {
   }
 
   ctx.restore();
-  return Boolean(image);
+  return Boolean(spriteData?.image);
 }
 
 export function drawFramedPanel(ctx, options) {
@@ -128,47 +260,54 @@ export function drawDecor(ctx, options) {
 export function drawCounterSkin(ctx, options) {
   const {
     bodyRole = null,
-    signRole = null,
+    frontRole = null,
     serviceRole = null,
     x,
     y,
     width,
     height,
     frontDepth = 0,
-    signBox = null,
     serviceBox = null,
     drawFallback = null
   } = options;
 
-  const bodyImage = getSprite(bodyRole);
-  const signImage = signRole ? getSprite(signRole) : null;
-  const serviceImage = serviceRole ? getSprite(serviceRole) : null;
+  const bodySprite = getResolvedSpriteData(bodyRole);
+  const frontSprite = getResolvedSpriteData(frontRole);
+  const serviceSprite = getResolvedSpriteData(serviceRole);
 
-  if (!bodyImage && !signImage && !serviceImage) {
+  if (!bodySprite?.image && !frontSprite?.image && !serviceSprite?.image) {
     if (typeof drawFallback === "function") {
       drawFallback();
     }
     return false;
   }
 
-  if (bodyImage) {
-    drawImage(ctx, bodyImage, x, y, width, height + frontDepth, 1, false);
+  if (bodySprite?.image) {
+    drawImage(ctx, bodySprite.image, x, y, width, height, {
+      smoothing: false,
+      source: bodySprite.source
+    });
   }
 
-  if (signImage && signBox) {
-    drawImage(ctx, signImage, signBox.x, signBox.y, signBox.width, signBox.height, 1, false);
+  if (frontSprite?.image && frontDepth > 0) {
+    drawImage(ctx, frontSprite.image, x, y + height, width, frontDepth, {
+      smoothing: false,
+      source: frontSprite.source
+    });
   }
 
-  if (serviceImage && serviceBox) {
+  if (serviceSprite?.image && serviceBox) {
     drawImage(
       ctx,
-      serviceImage,
+      serviceSprite.image,
       serviceBox.x,
       serviceBox.y,
       serviceBox.width,
       serviceBox.height,
-      1,
-      false
+      {
+        smoothing: false,
+        source: serviceSprite.source
+      }
     );
   }
 

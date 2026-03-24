@@ -57,7 +57,7 @@ function getCounterRoleBase(stallId) {
     case "ramen_stall":
       return "counter.ramen";
     case "dry_noodle_stall":
-      return "counter.dry_noodle";
+      return "counter.dry";
     case "soup_station":
       return "counter.soup";
     default:
@@ -115,16 +115,27 @@ export default class EnvironmentRenderer {
     ctx.fillStyle = PALETTE.roomShell;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = PALETTE.wallTop;
+    drawTiledArea(ctx, {
+      role: "wall.band",
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: WALL_BAND_HEIGHT,
+      tileWidth: 48,
+      tileHeight: 48,
+      drawFallbackTile: ({ tileX, tileY, tileWidth, tileHeight }) => {
+        ctx.fillStyle = PALETTE.wallTop;
+        ctx.fillRect(tileX, tileY, tileWidth, tileHeight);
+      }
+    });
+
+    ctx.fillStyle = "rgba(19, 37, 58, 0.56)";
     ctx.fillRect(0, 0, canvas.width, WALL_BAND_HEIGHT);
 
     ctx.fillStyle = PALETTE.wallInset;
     ctx.fillRect(0, WALL_BAND_HEIGHT, canvas.width, 96);
 
-    for (let x = 0; x < canvas.width; x += 96) {
-      ctx.fillStyle = x % 192 === 0 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.02)";
-      ctx.fillRect(x + 14, 18, 60, 40);
-    }
+    this.drawWallWindows(ctx, servicePoints);
 
     servicePoints.forEach((point, index) => {
       const stallX = point.stallRect.x - 18;
@@ -149,8 +160,19 @@ export default class EnvironmentRenderer {
       ctx.strokeRect(stallX + 10, panelY + 10, panelW - 20, 18);
     });
 
-    ctx.fillStyle = PALETTE.divider;
-    ctx.fillRect(0, WALL_BAND_HEIGHT + 96, canvas.width, 3);
+    drawTiledArea(ctx, {
+      role: "wall.trim",
+      x: 0,
+      y: WALL_BAND_HEIGHT + 95,
+      width: canvas.width,
+      height: 12,
+      tileWidth: 48,
+      tileHeight: 12,
+      drawFallbackTile: ({ tileX, tileY, tileWidth, tileHeight }) => {
+        ctx.fillStyle = PALETTE.divider;
+        ctx.fillRect(tileX, tileY, tileWidth, tileHeight);
+      }
+    });
 
     ctx.fillStyle = "rgba(255,255,255,0.04)";
     ctx.fillRect(diningBounds.minX, diningBounds.minY - 12, diningBounds.maxX - diningBounds.minX, 6);
@@ -206,6 +228,24 @@ export default class EnvironmentRenderer {
     ctx.restore();
   }
 
+  drawWallWindows(ctx, servicePoints) {
+    servicePoints.forEach((point) => {
+      const windowX = point.x - 30;
+
+      drawDecor(ctx, {
+        role: "wall.window",
+        x: windowX,
+        y: 14,
+        width: 60,
+        height: 48,
+        drawFallback: () => {
+          ctx.fillStyle = "rgba(255,255,255,0.035)";
+          ctx.fillRect(windowX, 18, 60, 40);
+        }
+      });
+    });
+  }
+
   drawFloor(ctx, canvas, diningBounds, serviceBounds, utilityBounds) {
     ctx.save();
 
@@ -226,6 +266,30 @@ export default class EnvironmentRenderer {
     this.drawFloorZone(ctx, serviceBounds, "floor.service", PALETTE.serviceFloorA, PALETTE.serviceFloorB);
     this.drawFloorZone(ctx, diningBounds, "floor.dining", PALETTE.diningFloorA, PALETTE.diningFloorB);
     this.drawFloorZone(ctx, utilityBounds, "floor.utility", PALETTE.utilityFloorA, PALETTE.utilityFloorB);
+
+    ctx.fillStyle = PALETTE.serviceZone;
+    ctx.fillRect(
+      serviceBounds.minX,
+      serviceBounds.minY,
+      serviceBounds.maxX - serviceBounds.minX,
+      serviceBounds.maxY - serviceBounds.minY
+    );
+
+    ctx.fillStyle = PALETTE.diningZone;
+    ctx.fillRect(
+      diningBounds.minX,
+      diningBounds.minY,
+      diningBounds.maxX - diningBounds.minX,
+      diningBounds.maxY - diningBounds.minY
+    );
+
+    ctx.fillStyle = PALETTE.washZone;
+    ctx.fillRect(
+      utilityBounds.minX,
+      utilityBounds.minY,
+      utilityBounds.maxX - utilityBounds.minX,
+      utilityBounds.maxY - utilityBounds.minY
+    );
 
     ctx.strokeStyle = PALETTE.floorGrid;
     ctx.lineWidth = 1;
@@ -372,19 +436,13 @@ export default class EnvironmentRenderer {
 
       drawCounterSkin(ctx, {
         bodyRole: roleBase ? `${roleBase}.body` : null,
-        signRole: roleBase ? `${roleBase}.sign` : null,
+        frontRole: roleBase ? `${roleBase}.front` : null,
         serviceRole: roleBase ? `${roleBase}.service` : null,
         x: stallX,
         y: stallY,
         width: STALL_BLOCK_WIDTH,
         height: STALL_BLOCK_HEIGHT,
         frontDepth: COUNTER_DEPTH,
-        signBox: {
-          x: stallX + 10,
-          y: signY,
-          width: STALL_BLOCK_WIDTH - 20,
-          height: 18
-        },
         serviceBox: {
           x: smallCounterX,
           y: smallCounterY,
@@ -395,6 +453,8 @@ export default class EnvironmentRenderer {
           this.drawCounterFallback(ctx, theme, stallX, stallY, signY, smallCounterX, smallCounterY);
         }
       });
+
+      this.drawCounterSignPlate(ctx, theme, stallX, signY);
 
       ctx.fillStyle = PALETTE.label;
       ctx.font = `700 17px ${DISPLAY_FONT_FAMILY}`;
@@ -411,16 +471,18 @@ export default class EnvironmentRenderer {
     ctx.restore();
   }
 
-  drawCounterFallback(ctx, theme, stallX, stallY, signY, smallCounterX, smallCounterY) {
+  drawCounterSignPlate(ctx, theme, stallX, signY) {
     ctx.fillStyle = PALETTE.plaque;
-    ctx.fillRect(stallX - 10, stallY - 18, STALL_BLOCK_WIDTH + 20, 12);
+    ctx.fillRect(stallX - 10, signY - 8, STALL_BLOCK_WIDTH + 20, 12);
 
     ctx.fillStyle = theme.sign;
     ctx.fillRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
     ctx.strokeStyle = PALETTE.plaqueStroke;
     ctx.lineWidth = 1;
     ctx.strokeRect(stallX + 10, signY, STALL_BLOCK_WIDTH - 20, 18);
+  }
 
+  drawCounterFallback(ctx, theme, stallX, stallY, signY, smallCounterX, smallCounterY) {
     ctx.fillStyle = theme.top;
     ctx.fillRect(stallX, stallY, STALL_BLOCK_WIDTH, STALL_BLOCK_HEIGHT);
 
@@ -738,35 +800,57 @@ export default class EnvironmentRenderer {
     });
 
     drawDecor(ctx, {
-      role: "poster.open_lab",
+      role: "poster.small",
       x: 698,
       y: 24,
       width: 96,
-      height: 38,
+      height: 48,
       drawFallback: () => {
         this.drawPoster(ctx, 698, 24, 96, 38, "OPEN LAB", "Queue data live");
       }
     });
 
     drawDecor(ctx, {
-      role: "poster.campus_special",
+      role: "poster.banner",
       x: 810,
       y: 24,
       width: 108,
-      height: 38,
+      height: 48,
       drawFallback: () => {
         this.drawPoster(ctx, 810, 24, 108, 38, "CAMPUS SPECIAL", "Fresh soup today");
       }
     });
 
     drawDecor(ctx, {
-      role: "cat.ambient",
+      role: "prop.decor.small",
+      x: canvas.width - 104,
+      y: 108,
+      width: 18,
+      height: 54,
+      drawFallback: () => {
+        this.drawLampFallback(ctx, canvas.width - 104, 108);
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "pet.cat.static",
       x: 52,
       y: canvas.height - 62,
-      width: 34,
-      height: 22,
+      width: 40,
+      height: 40,
       drawFallback: () => {
         this.drawCat(ctx, 52, canvas.height - 62, time);
+      }
+    });
+
+    drawDecor(ctx, {
+      role: "pet.dog.static",
+      x: 146,
+      y: canvas.height - 54,
+      width: 30,
+      height: 30,
+      drawFallback: () => {
+        this.drawDogFallback(ctx, 146, canvas.height - 54);
       }
     });
 
@@ -826,6 +910,30 @@ export default class EnvironmentRenderer {
     ctx.fillStyle = PALETTE.outline;
     ctx.fillRect(x + 26, y + 6, 2, 2);
     ctx.fillRect(x + 30, y + 6, 2, 2);
+  }
+
+  drawDogFallback(ctx, x, y) {
+    ctx.fillStyle = "#d7bf94";
+    ctx.fillRect(x + 8, y + 10, 18, 10);
+    ctx.fillRect(x + 18, y + 4, 10, 8);
+    ctx.fillRect(x + 2, y + 12, 8, 4);
+
+    ctx.fillStyle = "#8a5a3d";
+    ctx.fillRect(x + 10, y + 14, 4, 6);
+    ctx.fillRect(x + 18, y + 14, 4, 6);
+    ctx.fillRect(x + 2, y + 10, 8, 2);
+
+    ctx.fillStyle = PALETTE.outline;
+    ctx.fillRect(x + 22, y + 7, 2, 2);
+  }
+
+  drawLampFallback(ctx, x, y) {
+    ctx.fillStyle = "#f3d29c";
+    ctx.fillRect(x + 2, y, 14, 8);
+    ctx.fillRect(x + 5, y + 8, 8, 28);
+
+    ctx.fillStyle = "#7d5231";
+    ctx.fillRect(x + 3, y + 36, 12, 4);
   }
 
   drawSignPlaque(ctx, x, y, width, height, title, subtitle) {
