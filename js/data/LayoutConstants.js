@@ -38,12 +38,3 @@ export const EXIT_POINT = {
   x: CANVAS_W - 10,
   y: CANVAS_H - 16
 };
-
-export const AISLE_WAYPOINTS = [
-  { id: "queue-left", x: 220, y: 282 },
-  { id: "queue-center", x: 420, y: 282 },
-  { id: "dining-entry", x: 520, y: 320 },
-  { id: "dining-mid-top", x: 520, y: 390 },
-  { id: "dining-mid-bottom", x: 520, y: 488 },
-  { id: "tray-lane", x: 900, y: 390 }
-];

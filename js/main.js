@@ -1,6 +1,6 @@
 import InformationSystemController from "./core/InformationSystemController.js";
 import { INSPECTABLES } from "./data/inspectables.js";
-import CanvasInspector from "./systems/CanvasInspector.js";
+import CanvasInspector from "./systems/CanvaInspector.js";
 import StudentDiningFlowSimulator from "./systems/StudentDiningFlowSimulator.js";
 import PlayerAvatar from "./entities/PlayerAvatar.js";
 import * as CanteenLayout from "./data/canteenLayout.js";

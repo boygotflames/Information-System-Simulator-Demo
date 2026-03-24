@@ -37,21 +37,23 @@ function buildServicePoint(definition, index) {
     Math.round((LAYOUT_GRID.stallZoneH - STALL_METRICS.bodyH) / 2) -
     8;
 
-  const servicePointX = centerX;
-  const servicePointY = stallY + STALL_METRICS.bodyH + STALL_METRICS.serviceOffsetY;
+  const serviceAnchorX = centerX;
+  const serviceAnchorY = stallY + STALL_METRICS.bodyH + STALL_METRICS.serviceOffsetY;
 
   return {
     ...definition,
-    x: servicePointX,
-    y: servicePointY,
-    servicePointX,
-    servicePointY,
+    x: serviceAnchorX,
+    y: serviceAnchorY,
+    servicePointX: serviceAnchorX,
+    servicePointY: serviceAnchorY,
+    serviceAnchorX,
+    serviceAnchorY,
     queueDirection: "down",
-    queueFrontX: servicePointX,
-    queueY: servicePointY + STALL_METRICS.queueSlotSpacing,
+    queueFrontX: serviceAnchorX,
+    queueY: serviceAnchorY + STALL_METRICS.queueSlotSpacing,
     queueSpacing: STALL_METRICS.queueSlotSpacing,
-    holdingX: servicePointX,
-    holdingY: servicePointY + STALL_METRICS.queueSlotSpacing,
+    holdingX: serviceAnchorX,
+    holdingY: serviceAnchorY + STALL_METRICS.queueSlotSpacing,
     stallRect: {
       x: stallX,
       y: stallY,
@@ -92,7 +94,9 @@ export function getNearestServicePoint(x, y, maxDistance = 60) {
   let nearestDistance = Infinity;
 
   for (const point of SERVICE_POINT_LIST) {
-    const distance = Math.hypot(point.x - x, point.y - y);
+    const anchorX = point.serviceAnchorX ?? point.x;
+    const anchorY = point.serviceAnchorY ?? point.y;
+    const distance = Math.hypot(anchorX - x, anchorY - y);
 
     if (distance <= maxDistance && distance < nearestDistance) {
       nearest = point;

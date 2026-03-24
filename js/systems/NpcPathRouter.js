@@ -1,5 +1,4 @@
-import { AISLE_WAYPOINTS } from "../data/LayoutConstants.js";
-import { isPointBlocked } from "./CollisionSystem.js";
+import { isRectBlocked } from "./CollisionSystem.js";
 
 function expandObstacle(obstacle, padding = 4) {
   return {
@@ -10,17 +9,27 @@ function expandObstacle(obstacle, padding = 4) {
   };
 }
 
-function segmentBlocked(fromX, fromY, toX, toY, obstacles) {
+function segmentBlocked(fromX, fromY, toX, toY, obstacles, entitySize) {
   const expanded = obstacles.map((obstacle) => expandObstacle(obstacle, 4));
   const distance = Math.hypot(toX - fromX, toY - fromY);
-  const steps = Math.max(2, Math.ceil(distance / 8));
+  const steps = Math.max(2, Math.ceil(distance / 6));
 
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps;
     const x = fromX + (toX - fromX) * t;
     const y = fromY + (toY - fromY) * t;
 
-    if (isPointBlocked(x, y, expanded)) {
+    if (
+      isRectBlocked(
+        {
+          x,
+          y,
+          w: entitySize,
+          h: entitySize
+        },
+        expanded
+      )
+    ) {
       return true;
     }
   }
@@ -28,32 +37,73 @@ function segmentBlocked(fromX, fromY, toX, toY, obstacles) {
   return false;
 }
 
-export function routePath(fromX, fromY, toX, toY, obstacles = []) {
-  if (!segmentBlocked(fromX, fromY, toX, toY, obstacles)) {
+function scoreWaypoint(point, fromX, fromY, toX, toY) {
+  return (
+    Math.hypot(point.x - fromX, point.y - fromY) +
+    Math.hypot(toX - point.x, toY - point.y)
+  );
+}
+
+export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) {
+  const {
+    entitySize = 18,
+    candidateWaypoints = []
+  } = options;
+
+  if (!segmentBlocked(fromX, fromY, toX, toY, obstacles, entitySize)) {
     return [{ x: toX, y: toY }];
   }
 
-  const candidateWaypoints = AISLE_WAYPOINTS
+  const ordered = candidateWaypoints
     .slice()
-    .sort((a, b) => {
-      const scoreA =
-        Math.hypot(a.x - fromX, a.y - fromY) + Math.hypot(toX - a.x, toY - a.y);
-      const scoreB =
-        Math.hypot(b.x - fromX, b.y - fromY) + Math.hypot(toX - b.x, toY - b.y);
+    .sort((a, b) => scoreWaypoint(a, fromX, fromY, toX, toY) - scoreWaypoint(b, fromX, fromY, toX, toY))
+    .slice(0, 8);
 
-      return scoreA - scoreB;
-    })
-    .slice(0, 3);
+  for (const waypoint of ordered) {
+    const firstBlocked = segmentBlocked(
+      fromX,
+      fromY,
+      waypoint.x,
+      waypoint.y,
+      obstacles,
+      entitySize
+    );
 
-  for (const waypoint of candidateWaypoints) {
-    const firstBlocked = segmentBlocked(fromX, fromY, waypoint.x, waypoint.y, obstacles);
-    const secondBlocked = segmentBlocked(waypoint.x, waypoint.y, toX, toY, obstacles);
+    const secondBlocked = segmentBlocked(
+      waypoint.x,
+      waypoint.y,
+      toX,
+      toY,
+      obstacles,
+      entitySize
+    );
 
     if (!firstBlocked && !secondBlocked) {
       return [
         { x: waypoint.x, y: waypoint.y },
         { x: toX, y: toY }
       ];
+    }
+  }
+
+  for (let i = 0; i < ordered.length; i += 1) {
+    for (let j = 0; j < ordered.length; j += 1) {
+      if (i === j) continue;
+
+      const a = ordered[i];
+      const b = ordered[j];
+
+      const firstBlocked = segmentBlocked(fromX, fromY, a.x, a.y, obstacles, entitySize);
+      const secondBlocked = segmentBlocked(a.x, a.y, b.x, b.y, obstacles, entitySize);
+      const thirdBlocked = segmentBlocked(b.x, b.y, toX, toY, obstacles, entitySize);
+
+      if (!firstBlocked && !secondBlocked && !thirdBlocked) {
+        return [
+          { x: a.x, y: a.y },
+          { x: b.x, y: b.y },
+          { x: toX, y: toY }
+        ];
+      }
     }
   }
 

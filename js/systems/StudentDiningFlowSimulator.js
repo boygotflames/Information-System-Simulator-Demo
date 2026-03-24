@@ -2,8 +2,8 @@ import { generateStudentIdentity } from "../data/namePools.js";
 import * as CanteenLayout from "../data/canteenLayout.js";
 import {
   ALL_DINING_SEATS,
-  TRAY_RETURN_STATION,
-  TRAY_RETURN_PATH
+  DINING_NAV_POINTS,
+  TRAY_DROP_ANCHOR
 } from "../data/diningAreaLayout.js";
 import {
   CANVAS_W,
@@ -173,12 +173,14 @@ export default class StudentDiningFlowSimulator {
 
     const tableOccupancy = this.getTableOccupancyMap(playerOccupiedSeatId);
     const servicePoint = this.queueSystem.getServicePoint(student.scenario.stallId);
+    const serviceX = servicePoint?.anchorX ?? servicePoint?.x ?? 0;
+    const serviceY = servicePoint?.anchorY ?? servicePoint?.y ?? 0;
 
     const scoredSeats = availableSeats.map((seat) => {
       const tableLoad = tableOccupancy.get(seat.tableId) || 0;
       const distanceFromCounter = Math.hypot(
-        seat.actorX - servicePoint.x,
-        seat.actorY - servicePoint.y
+        seat.anchorX - serviceX,
+        seat.anchorY - serviceY
       );
 
       let score = Math.random() * 12;
@@ -237,13 +239,65 @@ export default class StudentDiningFlowSimulator {
     return Math.abs(last.x - x) < 1 && Math.abs(last.y - y) < 1;
   }
 
+  anchorToActorTopLeft(anchorX, anchorY, size) {
+    return {
+      x: Math.round(anchorX - size / 2),
+      y: Math.round(anchorY - size / 2)
+    };
+  }
+
+  getRoutingWaypoints(student) {
+    return DINING_NAV_POINTS.map((point) => ({
+      id: point.id,
+      ...this.anchorToActorTopLeft(point.x, point.y, student.size)
+    }));
+  }
+
+  buildRouteForStudent(student, targetX, targetY) {
+    return routePath(student.x, student.y, targetX, targetY, STATIC_OBSTACLES, {
+      entitySize: student.size,
+      candidateWaypoints: this.getRoutingWaypoints(student)
+    });
+  }
+
+  getQueueTarget(student, slot) {
+    return this.anchorToActorTopLeft(slot.anchorX, slot.anchorY, student.size);
+  }
+
+  getServiceTarget(student, servicePoint) {
+    return this.anchorToActorTopLeft(
+      servicePoint.anchorX ?? servicePoint.x,
+      servicePoint.anchorY ?? servicePoint.y,
+      student.size
+    );
+  }
+
+  getSeatTarget(student, seat) {
+    return this.anchorToActorTopLeft(seat.anchorX, seat.anchorY, student.size);
+  }
+
+  getTrayDropTarget(student) {
+    return this.anchorToActorTopLeft(
+      TRAY_DROP_ANCHOR.x,
+      TRAY_DROP_ANCHOR.y,
+      student.size
+    );
+  }
+
+  getExitTarget(student) {
+    return this.anchorToActorTopLeft(EXIT_POINT.x, EXIT_POINT.y, student.size);
+  }
+
   setRoute(student, waypoints = []) {
     student.route = waypoints.slice();
     student.routeIndex = 0;
   }
 
   buildRoute(fromX, fromY, toX, toY) {
-    return routePath(fromX, fromY, toX, toY, STATIC_OBSTACLES);
+    return routePath(fromX, fromY, toX, toY, STATIC_OBSTACLES, {
+      entitySize: 18,
+      candidateWaypoints: []
+    });
   }
 
   moveToward(student, targetX, targetY, deltaTime) {
@@ -305,18 +359,30 @@ export default class StudentDiningFlowSimulator {
   }
 
   routeStudentToExit(student) {
+    const exitTarget = this.getExitTarget(student);
+
     this.setRoute(
       student,
-      this.buildRoute(student.x, student.y, EXIT_POINT.x, EXIT_POINT.y)
+      this.buildRouteForStudent(student, exitTarget.x, exitTarget.y)
     );
+
     student.state = "DONE";
   }
 
   sendStudentToQueue(student) {
     const slot = this.queueSystem.joinQueue(student.scenario.stallId, student.id);
 
-    if (!slot || isBlocked(slot.x, slot.y, student.size)) {
+    if (!slot) {
       this.controller.recordAbandonedTransaction?.();
+      this.routeStudentToExit(student);
+      return;
+    }
+
+    const slotTarget = this.getQueueTarget(student, slot);
+
+    if (isBlocked(slotTarget.x, slotTarget.y, student.size)) {
+      this.controller.recordAbandonedTransaction?.();
+      this.queueSystem.leaveQueue(student.scenario.stallId, student.id);
       this.routeStudentToExit(student);
       return;
     }
@@ -327,13 +393,17 @@ export default class StudentDiningFlowSimulator {
     student.serviceTimer = 0;
     student.beingServed = false;
 
-    if (!this.hasRouteTarget(student, slot.x, slot.y)) {
-      this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
+    if (!this.hasRouteTarget(student, slotTarget.x, slotTarget.y)) {
+      this.setRoute(
+        student,
+        this.buildRouteForStudent(student, slotTarget.x, slotTarget.y)
+      );
     }
   }
 
   assignSeatToStudent(student, seat) {
     this.occupySeat(seat.id, student.id);
+    const seatTarget = this.getSeatTarget(student, seat);
 
     student.seatId = seat.id;
     student.seatedSeatId = seat.id;
@@ -343,7 +413,7 @@ export default class StudentDiningFlowSimulator {
 
     this.setRoute(
       student,
-      this.buildRoute(student.x, student.y, seat.actorX, seat.actorY)
+      this.buildRouteForStudent(student, seatTarget.x, seatTarget.y)
     );
   }
 
@@ -480,16 +550,17 @@ export default class StudentDiningFlowSimulator {
 
     if (assignment.index === 0) {
       const servicePoint = this.queueSystem.getServicePoint(assignment.stallId);
+      const serviceTarget = this.getServiceTarget(student, servicePoint);
       const activeServiceId = this.activeServiceByStall.get(assignment.stallId);
 
       if (!activeServiceId || activeServiceId === student.id) {
         this.activeServiceByStall.set(assignment.stallId, student.id);
         student.beingServed = true;
 
-        if (!this.hasRouteTarget(student, servicePoint.x, servicePoint.y)) {
+        if (!this.hasRouteTarget(student, serviceTarget.x, serviceTarget.y)) {
           this.setRoute(
             student,
-            this.buildRoute(student.x, student.y, servicePoint.x, servicePoint.y)
+            this.buildRouteForStudent(student, serviceTarget.x, serviceTarget.y)
           );
         }
 
@@ -513,8 +584,13 @@ export default class StudentDiningFlowSimulator {
       return;
     }
 
-    if (!this.hasRouteTarget(student, slot.x, slot.y)) {
-      this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
+    const slotTarget = this.getQueueTarget(student, slot);
+
+    if (!this.hasRouteTarget(student, slotTarget.x, slotTarget.y)) {
+      this.setRoute(
+        student,
+        this.buildRouteForStudent(student, slotTarget.x, slotTarget.y)
+      );
     }
 
     this.followRoute(student, deltaTime);
@@ -550,8 +626,13 @@ export default class StudentDiningFlowSimulator {
           return;
         }
 
-        if (!this.hasRouteTarget(student, slot.x, slot.y)) {
-          this.setRoute(student, this.buildRoute(student.x, student.y, slot.x, slot.y));
+        const slotTarget = this.getQueueTarget(student, slot);
+
+        if (!this.hasRouteTarget(student, slotTarget.x, slotTarget.y)) {
+          this.setRoute(
+            student,
+            this.buildRouteForStudent(student, slotTarget.x, slotTarget.y)
+          );
         }
 
         const arrived = this.followRoute(student, deltaTime);
@@ -586,18 +667,20 @@ export default class StudentDiningFlowSimulator {
           return;
         }
 
-        if (!this.hasRouteTarget(student, seat.actorX, seat.actorY)) {
+        const seatTarget = this.getSeatTarget(student, seat);
+
+        if (!this.hasRouteTarget(student, seatTarget.x, seatTarget.y)) {
           this.setRoute(
             student,
-            this.buildRoute(student.x, student.y, seat.actorX, seat.actorY)
+            this.buildRouteForStudent(student, seatTarget.x, seatTarget.y)
           );
         }
 
         const arrived = this.followRoute(student, deltaTime);
 
         if (arrived) {
-          student.x = seat.actorX;
-          student.y = seat.actorY;
+          student.x = seatTarget.x;
+          student.y = seatTarget.y;
           student.state = "SEATED";
           student.seatedTimer = 0;
         }
@@ -609,8 +692,7 @@ export default class StudentDiningFlowSimulator {
         student.seatedTimer += deltaTime;
 
         if (student.seatedTimer >= student.eatDuration) {
-          const trayDropoffX = TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 10;
-          const trayDropoffY = TRAY_RETURN_PATH[0].y;
+          const trayTarget = this.getTrayDropTarget(student);
 
           this.releaseSeat(student.seatId, student.id);
 
@@ -620,7 +702,7 @@ export default class StudentDiningFlowSimulator {
 
           this.setRoute(
             student,
-            this.buildRoute(student.x, student.y, trayDropoffX, trayDropoffY)
+            this.buildRouteForStudent(student, trayTarget.x, trayTarget.y)
           );
 
           student.state = "MOVING_TO_TRAY";

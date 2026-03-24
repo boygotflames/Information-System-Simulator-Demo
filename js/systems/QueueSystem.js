@@ -3,7 +3,13 @@ import {
 } from "../data/LayoutConstants.js";
 
 export default class QueueSystem {
-  constructor(servicePoints, { maxSlots = STALL_METRICS.maxQueueSlots, slotSpacing = STALL_METRICS.queueSlotSpacing } = {}) {
+  constructor(
+    servicePoints,
+    {
+      maxSlots = STALL_METRICS.maxQueueSlots,
+      slotSpacing = STALL_METRICS.queueSlotSpacing
+    } = {}
+  ) {
     this.maxSlots = maxSlots;
     this.slotSpacing = slotSpacing;
 
@@ -11,21 +17,33 @@ export default class QueueSystem {
     this.assignments = new Map();
 
     servicePoints.forEach((point) => {
-      const slots = Array.from({ length: this.maxSlots }, (_, index) => ({
-        index,
-        stallId: point.stallId,
-        servicePointId: point.id,
-        x: point.servicePointX ?? point.x,
-        y: (point.servicePointY ?? point.y) + (index + 1) * this.slotSpacing,
-        occupied: false,
-        occupantId: null
-      }));
+      const serviceAnchorX = point.serviceAnchorX ?? point.servicePointX ?? point.x;
+      const serviceAnchorY = point.serviceAnchorY ?? point.servicePointY ?? point.y;
+
+      const slots = Array.from({ length: this.maxSlots }, (_, index) => {
+        const anchorX = serviceAnchorX;
+        const anchorY = serviceAnchorY + (index + 1) * this.slotSpacing;
+
+        return {
+          index,
+          stallId: point.stallId,
+          servicePointId: point.id,
+          anchorX,
+          anchorY,
+          x: anchorX,
+          y: anchorY,
+          occupied: false,
+          occupantId: null
+        };
+      });
 
       this.records.set(point.stallId, {
         stallId: point.stallId,
         servicePoint: {
-          x: point.servicePointX ?? point.x,
-          y: point.servicePointY ?? point.y
+          anchorX: serviceAnchorX,
+          anchorY: serviceAnchorY,
+          x: serviceAnchorX,
+          y: serviceAnchorY
         },
         slots,
         queue: []

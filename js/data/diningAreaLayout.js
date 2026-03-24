@@ -5,9 +5,17 @@ import {
   EXIT_POINT
 } from "./LayoutConstants.js";
 
+const DINING_AREA_GRID = {
+  ...DINING_GRID,
+  gapX: DINING_GRID.gapX + 22,
+  gapY: DINING_GRID.gapY + 20,
+  originX: DINING_GRID.originX - 90,
+  originY: DINING_GRID.originY + 20
+};
+
 function createSeatSet(tableId, tableLabel, tableX, tableY, tableW, tableH) {
-  const seatSize = DINING_GRID.seatSize;
-  const seatOffset = DINING_GRID.seatOffset;
+  const seatSize = DINING_AREA_GRID.seatSize;
+  const seatOffset = DINING_AREA_GRID.seatOffset;
 
   const horizontalGap = Math.floor((tableW - seatSize * 3) / 4);
   const seatXs = [
@@ -16,50 +24,38 @@ function createSeatSet(tableId, tableLabel, tableX, tableY, tableW, tableH) {
     tableX + horizontalGap * 3 + seatSize * 2
   ];
 
-  const topY = tableY - seatSize - seatOffset;
-  const bottomY = tableY + tableH + seatOffset;
+  const visibleSeatY = tableY - seatSize - seatOffset;
+  const mealY = tableY + 8;
 
-  return seatXs.flatMap((seatX, index) => {
+  return seatXs.map((seatX, index) => {
     const seatNumber = index + 1;
 
-    return [
-      {
-        id: `${tableId}_top_${seatNumber}`,
-        tableId,
-        label: `${tableLabel}-T${seatNumber}`,
-        side: "top",
-        x: seatX,
-        y: topY,
-        width: seatSize,
-        height: seatSize,
-        actorX: seatX,
-        actorY: topY,
-        anchorX: seatX + seatSize / 2,
-        anchorY: topY + seatSize / 2
-      },
-      {
-        id: `${tableId}_bottom_${seatNumber}`,
-        tableId,
-        label: `${tableLabel}-B${seatNumber}`,
-        side: "bottom",
-        x: seatX,
-        y: bottomY,
-        width: seatSize,
-        height: seatSize,
-        actorX: seatX,
-        actorY: bottomY,
-        anchorX: seatX + seatSize / 2,
-        anchorY: bottomY + seatSize / 2
-      }
-    ];
+    return {
+      id: `${tableId}_top_${seatNumber}`,
+      tableId,
+      label: `${tableLabel}-S${seatNumber}`,
+      side: "top",
+      x: seatX,
+      y: visibleSeatY,
+      width: seatSize,
+      height: seatSize,
+
+      actorX: seatX,
+      actorY: visibleSeatY,
+      anchorX: seatX + seatSize / 2,
+      anchorY: visibleSeatY + seatSize / 2,
+
+      mealX: seatX,
+      mealY
+    };
   });
 }
 
 function createDiningTable(col, row) {
-  const x = DINING_GRID.originX + col * (DINING_GRID.tableW + DINING_GRID.gapX);
-  const y = DINING_GRID.originY + row * (DINING_GRID.tableH + DINING_GRID.gapY);
-  const id = `table_${row * DINING_GRID.cols + col + 1}`;
-  const label = `T${row * DINING_GRID.cols + col + 1}`;
+  const x = DINING_AREA_GRID.originX + col * (DINING_AREA_GRID.tableW + DINING_AREA_GRID.gapX);
+  const y = DINING_AREA_GRID.originY + row * (DINING_AREA_GRID.tableH + DINING_AREA_GRID.gapY);
+  const id = `table_${row * DINING_AREA_GRID.cols + col + 1}`;
+  const label = `T${row * DINING_AREA_GRID.cols + col + 1}`;
 
   return {
     id,
@@ -68,14 +64,14 @@ function createDiningTable(col, row) {
     row,
     x,
     y,
-    width: DINING_GRID.tableW,
-    height: DINING_GRID.tableH,
-    seats: createSeatSet(id, label, x, y, DINING_GRID.tableW, DINING_GRID.tableH)
+    width: DINING_AREA_GRID.tableW,
+    height: DINING_AREA_GRID.tableH,
+    seats: createSeatSet(id, label, x, y, DINING_AREA_GRID.tableW, DINING_AREA_GRID.tableH)
   };
 }
 
-export const DINING_TABLES = Array.from({ length: DINING_GRID.rows }, (_, row) =>
-  Array.from({ length: DINING_GRID.cols }, (_, col) => createDiningTable(col, row))
+export const DINING_TABLES = Array.from({ length: DINING_AREA_GRID.rows }, (_, row) =>
+  Array.from({ length: DINING_AREA_GRID.cols }, (_, col) => createDiningTable(col, row))
 ).flat();
 
 export const DINING_TABLES_8 = DINING_TABLES;
@@ -112,18 +108,64 @@ export const TRAY_RETURN_PATH = [
   { x: TRAY_RETURN_STATION.x + Math.floor(TRAY_RETURN_STATION.width / 2), y: 488 }
 ];
 
+const NORTH_WALK_Y = Math.max(72, DINING_AREA_GRID.originY - 26);
+const CENTER_WALK_Y =
+  DINING_AREA_GRID.originY +
+  DINING_AREA_GRID.tableH +
+  Math.floor(DINING_AREA_GRID.gapY / 2);
+const SOUTH_WALK_Y = Math.min(
+  CANVAS_H - 32,
+  DINING_AREA_GRID.originY +
+    (DINING_AREA_GRID.tableH + DINING_AREA_GRID.gapY) * DINING_AREA_GRID.rows -
+    8
+);
+
+const FIRST_TABLE = DINING_TABLES[0];
+const SECOND_TABLE = DINING_TABLES[1];
+const THIRD_TABLE = DINING_TABLES[2];
+
+const WEST_ENTRY_X = FIRST_TABLE.x - 34;
+const AISLE_1_X = FIRST_TABLE.x + FIRST_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
+const AISLE_2_X = SECOND_TABLE.x + SECOND_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
+const AISLE_3_X = THIRD_TABLE.x + THIRD_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
+const TRAY_LANE_X = TRAY_RETURN_STATION.x - 22;
+
+export const DINING_ENTRY_ANCHOR = {
+  x: WEST_ENTRY_X,
+  y: CENTER_WALK_Y
+};
+
+export const TRAY_DROP_ANCHOR = {
+  x: TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 12,
+  y: TRAY_RETURN_PATH[0].y
+};
+
+export const DINING_NAV_POINTS = [
+  { id: "north-west-entry", x: WEST_ENTRY_X, y: NORTH_WALK_Y },
+  { id: "north-aisle-1", x: AISLE_1_X, y: NORTH_WALK_Y },
+  { id: "north-aisle-2", x: AISLE_2_X, y: NORTH_WALK_Y },
+  { id: "north-aisle-3", x: AISLE_3_X, y: NORTH_WALK_Y },
+
+  { id: "center-west-entry", x: WEST_ENTRY_X, y: CENTER_WALK_Y },
+  { id: "center-aisle-1", x: AISLE_1_X, y: CENTER_WALK_Y },
+  { id: "center-aisle-2", x: AISLE_2_X, y: CENTER_WALK_Y },
+  { id: "center-aisle-3", x: AISLE_3_X, y: CENTER_WALK_Y },
+
+  { id: "south-west-entry", x: WEST_ENTRY_X, y: SOUTH_WALK_Y },
+  { id: "south-aisle-1", x: AISLE_1_X, y: SOUTH_WALK_Y },
+  { id: "south-aisle-2", x: AISLE_2_X, y: SOUTH_WALK_Y },
+  { id: "south-aisle-3", x: AISLE_3_X, y: SOUTH_WALK_Y },
+
+  { id: "tray-lane", x: TRAY_LANE_X, y: CENTER_WALK_Y },
+  { id: "tray-drop", x: TRAY_DROP_ANCHOR.x, y: TRAY_DROP_ANCHOR.y }
+];
+
 export const DINING_ROUTE_LANES = {
-  entryX: 520,
-  northY: DINING_GRID.originY - 14,
-  middleY:
-    DINING_GRID.originY +
-    DINING_GRID.tableH +
-    Math.floor(DINING_GRID.gapY / 2),
-  southY:
-    DINING_GRID.originY +
-    (DINING_GRID.tableH + DINING_GRID.gapY) * DINING_GRID.rows +
-    4,
-  trayLaneX: TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 10,
+  entryX: WEST_ENTRY_X,
+  northY: NORTH_WALK_Y,
+  middleY: CENTER_WALK_Y,
+  southY: SOUTH_WALK_Y,
+  trayLaneX: TRAY_LANE_X,
   exitLaneX: EXIT_POINT.x,
   exitY: EXIT_POINT.y
 };
