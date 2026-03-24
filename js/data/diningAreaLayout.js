@@ -29,6 +29,8 @@ function createSeatSet(tableId, tableLabel, tableX, tableY, tableW, tableH) {
 
   return seatXs.map((seatX, index) => {
     const seatNumber = index + 1;
+    const actorX = seatX - 4;
+    const actorY = visibleSeatY - 12;
 
     return {
       id: `${tableId}_top_${seatNumber}`,
@@ -40,10 +42,10 @@ function createSeatSet(tableId, tableLabel, tableX, tableY, tableW, tableH) {
       width: seatSize,
       height: seatSize,
 
-      actorX: seatX,
-      actorY: visibleSeatY,
-      anchorX: seatX + seatSize / 2,
-      anchorY: visibleSeatY + seatSize / 2,
+      actorX,
+      actorY,
+      anchorX: actorX + 9,
+      anchorY: actorY + 9,
 
       mealX: seatX,
       mealY
@@ -108,6 +110,22 @@ export const TRAY_RETURN_PATH = [
   { x: TRAY_RETURN_STATION.x + Math.floor(TRAY_RETURN_STATION.width / 2), y: 488 }
 ];
 
+export const TRAY_DROP_SLOTS = [
+  { id: "tray-slot-1", x: 881, y: 341 },
+  { id: "tray-slot-2", x: 905, y: 341 },
+  { id: "tray-slot-3", x: 929, y: 341 }
+];
+
+export const TRAY_DROP_ANCHOR = {
+  x: TRAY_DROP_SLOTS[1].x,
+  y: TRAY_DROP_SLOTS[1].y
+};
+
+export const TRAY_EXIT_ANCHOR = {
+  x: 945,
+  y: 341
+};
+
 const NORTH_WALK_Y = Math.max(72, DINING_AREA_GRID.originY - 26);
 const CENTER_WALK_Y =
   DINING_AREA_GRID.originY +
@@ -128,16 +146,11 @@ const WEST_ENTRY_X = FIRST_TABLE.x - 34;
 const AISLE_1_X = FIRST_TABLE.x + FIRST_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
 const AISLE_2_X = SECOND_TABLE.x + SECOND_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
 const AISLE_3_X = THIRD_TABLE.x + THIRD_TABLE.width + Math.floor(DINING_AREA_GRID.gapX / 2);
-const TRAY_LANE_X = TRAY_RETURN_STATION.x - 22;
+const TRAY_LANE_X = TRAY_DROP_SLOTS[0].x;
 
 export const DINING_ENTRY_ANCHOR = {
   x: WEST_ENTRY_X,
   y: CENTER_WALK_Y
-};
-
-export const TRAY_DROP_ANCHOR = {
-  x: TRAY_RETURN_STATION.x + TRAY_RETURN_STATION.width + 12,
-  y: TRAY_RETURN_PATH[0].y
 };
 
 export const DINING_NAV_POINTS = [
@@ -157,7 +170,10 @@ export const DINING_NAV_POINTS = [
   { id: "south-aisle-3", x: AISLE_3_X, y: SOUTH_WALK_Y },
 
   { id: "tray-lane", x: TRAY_LANE_X, y: CENTER_WALK_Y },
-  { id: "tray-drop", x: TRAY_DROP_ANCHOR.x, y: TRAY_DROP_ANCHOR.y }
+  { id: "tray-slot-1", x: TRAY_DROP_SLOTS[0].x, y: TRAY_DROP_SLOTS[0].y },
+  { id: "tray-slot-2", x: TRAY_DROP_SLOTS[1].x, y: TRAY_DROP_SLOTS[1].y },
+  { id: "tray-slot-3", x: TRAY_DROP_SLOTS[2].x, y: TRAY_DROP_SLOTS[2].y },
+  { id: "tray-exit", x: TRAY_EXIT_ANCHOR.x, y: TRAY_EXIT_ANCHOR.y }
 ];
 
 export const DINING_ROUTE_LANES = {
@@ -166,8 +182,8 @@ export const DINING_ROUTE_LANES = {
   middleY: CENTER_WALK_Y,
   southY: SOUTH_WALK_Y,
   trayLaneX: TRAY_LANE_X,
-  exitLaneX: EXIT_POINT.x,
-  exitY: EXIT_POINT.y
+  exitLaneX: TRAY_EXIT_ANCHOR.x,
+  exitY: TRAY_EXIT_ANCHOR.y
 };
 
 export function getSeatById(seatId) {

@@ -9,8 +9,23 @@ function expandObstacle(obstacle, padding = 4) {
   };
 }
 
-function segmentBlocked(fromX, fromY, toX, toY, obstacles, entitySize) {
-  const expanded = obstacles.map((obstacle) => expandObstacle(obstacle, 4));
+function buildExpandedObstacles(obstacles) {
+  return obstacles.map((obstacle) => expandObstacle(obstacle, 4));
+}
+
+function pointBlocked(x, y, expandedObstacles, entitySize) {
+  return isRectBlocked(
+    {
+      x,
+      y,
+      w: entitySize,
+      h: entitySize
+    },
+    expandedObstacles
+  );
+}
+
+function segmentBlocked(fromX, fromY, toX, toY, expandedObstacles, entitySize) {
   const distance = Math.hypot(toX - fromX, toY - fromY);
   const steps = Math.max(2, Math.ceil(distance / 6));
 
@@ -19,17 +34,7 @@ function segmentBlocked(fromX, fromY, toX, toY, obstacles, entitySize) {
     const x = fromX + (toX - fromX) * t;
     const y = fromY + (toY - fromY) * t;
 
-    if (
-      isRectBlocked(
-        {
-          x,
-          y,
-          w: entitySize,
-          h: entitySize
-        },
-        expanded
-      )
-    ) {
+    if (pointBlocked(x, y, expandedObstacles, entitySize)) {
       return true;
     }
   }
@@ -50,11 +55,21 @@ export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) 
     candidateWaypoints = []
   } = options;
 
-  if (!segmentBlocked(fromX, fromY, toX, toY, obstacles, entitySize)) {
+  const expandedObstacles = buildExpandedObstacles(obstacles);
+
+  if (
+    pointBlocked(fromX, fromY, expandedObstacles, entitySize) ||
+    pointBlocked(toX, toY, expandedObstacles, entitySize)
+  ) {
+    return null;
+  }
+
+  if (!segmentBlocked(fromX, fromY, toX, toY, expandedObstacles, entitySize)) {
     return [{ x: toX, y: toY }];
   }
 
   const ordered = candidateWaypoints
+    .filter((point) => !pointBlocked(point.x, point.y, expandedObstacles, entitySize))
     .slice()
     .sort((a, b) => scoreWaypoint(a, fromX, fromY, toX, toY) - scoreWaypoint(b, fromX, fromY, toX, toY))
     .slice(0, 8);
@@ -65,7 +80,7 @@ export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) 
       fromY,
       waypoint.x,
       waypoint.y,
-      obstacles,
+      expandedObstacles,
       entitySize
     );
 
@@ -74,7 +89,7 @@ export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) 
       waypoint.y,
       toX,
       toY,
-      obstacles,
+      expandedObstacles,
       entitySize
     );
 
@@ -93,9 +108,9 @@ export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) 
       const a = ordered[i];
       const b = ordered[j];
 
-      const firstBlocked = segmentBlocked(fromX, fromY, a.x, a.y, obstacles, entitySize);
-      const secondBlocked = segmentBlocked(a.x, a.y, b.x, b.y, obstacles, entitySize);
-      const thirdBlocked = segmentBlocked(b.x, b.y, toX, toY, obstacles, entitySize);
+      const firstBlocked = segmentBlocked(fromX, fromY, a.x, a.y, expandedObstacles, entitySize);
+      const secondBlocked = segmentBlocked(a.x, a.y, b.x, b.y, expandedObstacles, entitySize);
+      const thirdBlocked = segmentBlocked(b.x, b.y, toX, toY, expandedObstacles, entitySize);
 
       if (!firstBlocked && !secondBlocked && !thirdBlocked) {
         return [
@@ -107,5 +122,5 @@ export function routePath(fromX, fromY, toX, toY, obstacles = [], options = {}) 
     }
   }
 
-  return [{ x: toX, y: toY }];
+  return null;
 }

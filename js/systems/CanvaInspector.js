@@ -45,41 +45,35 @@ export default class CanvasInspector {
   }
 
   drawDebugZones(ctx) {
-    for (const item of this.inspectables) {
-      const isHovered = item.id === this.hoveredId;
+    const item = this.inspectables.find((inspectable) => inspectable.id === this.hoveredId);
+    if (!item) return;
 
-      ctx.save();
+    ctx.save();
 
-      if (isHovered) {
-        ctx.fillStyle = item.color;
-        ctx.globalAlpha = 0.16;
-        ctx.fillRect(item.x, item.y, item.width, item.height);
-      }
+    ctx.fillStyle = item.color;
+    ctx.globalAlpha = 0.14;
+    ctx.fillRect(item.x, item.y, item.width, item.height);
 
-      ctx.globalAlpha = 1;
-      ctx.setLineDash(isHovered ? [] : [6, 6]);
-      ctx.lineWidth = isHovered ? 2.5 : 1;
-      ctx.strokeStyle = isHovered ? "#ffffff" : "rgba(203, 213, 225, 0.18)";
-      ctx.strokeRect(item.x, item.y, item.width, item.height);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeRect(item.x, item.y, item.width, item.height);
 
-      if (isHovered) {
-        const labelWidth = Math.max(120, item.name.length * 8 + 16);
-        const labelX = item.x + 6;
-        const labelY = Math.max(18, item.y - 24);
+    const labelWidth = Math.max(120, item.name.length * 8 + 16);
+    const labelX = item.x + 6;
+    const labelY = Math.max(18, item.y - 24);
 
-        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-        ctx.fillRect(labelX, labelY, labelWidth, 18);
+    ctx.fillStyle = "rgba(8, 18, 29, 0.9)";
+    ctx.fillRect(labelX, labelY, labelWidth, 18);
 
-        ctx.strokeStyle = "rgba(255,255,255,0.28)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(labelX, labelY, labelWidth, 18);
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(labelX, labelY, labelWidth, 18);
 
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "12px Arial";
-        ctx.fillText(item.name, labelX + 8, labelY + 12);
-      }
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px 'Space Grotesk', Arial";
+    ctx.fillText(item.name, labelX + 8, labelY + 12);
 
-      ctx.restore();
-    }
+    ctx.restore();
   }
 }

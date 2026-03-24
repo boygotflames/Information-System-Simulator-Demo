@@ -9,7 +9,8 @@ import {
   ALL_DINING_SEATS,
   TRAY_RETURN_STATION,
   WASHING_AREA,
-  TRAY_RETURN_PATH
+  TRAY_RETURN_PATH,
+  TRAY_DROP_SLOTS
 } from "./data/diningAreaLayout.js";
 import TrayReturnSystem from "./systems/TrayReturnSystem.js";
 import { STATIC_OBSTACLES } from "./data/collisionLayout.js";
@@ -146,7 +147,7 @@ function handlePlayerInteraction() {
   controller.setPlayerStatus("Exploring");
 }
 
-function drawScene() {
+function drawScene(sceneTime = performance.now()) {
   worldRenderer.draw(ctx, {
     canvas,
     servicePoints: CanteenLayout.SERVICE_POINT_LIST || Object.values(CanteenLayout.SERVICE_POINTS || {}),
@@ -154,6 +155,7 @@ function drawScene() {
     trayReturnStation: TRAY_RETURN_STATION,
     washingArea: WASHING_AREA,
     trayPath: TRAY_RETURN_PATH,
+    trayDropSlots: TRAY_DROP_SLOTS,
     occupiedSeatIds: studentFlow.getOccupiedSeatIds(player.seatedSeatId),
     playerSeatId: player.seatedSeatId,
     trays: traySystem.trays,
@@ -161,7 +163,8 @@ function drawScene() {
       ? studentFlow.getRenderableStudents()
       : studentFlow.students,
     player,
-    playerProfile: controller.getPlayerProfile()
+    playerProfile: controller.getPlayerProfile(),
+    time: sceneTime / 1000
   });
 
   inspector.drawDebugZones(ctx);
@@ -271,7 +274,7 @@ function loop(currentTime) {
 
   controller.renderOperationalMetrics();
 
-  drawScene();
+  drawScene(currentTime);
   requestAnimationFrame(loop);
 }
 

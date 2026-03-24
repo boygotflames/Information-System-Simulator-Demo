@@ -108,6 +108,14 @@ export default class QueueSystem {
     this.normalizeAssignments(stallId);
   }
 
+  leaveAssignedQueue(npcId) {
+    const assignment = this.assignments.get(npcId);
+    if (!assignment) return false;
+
+    this.leaveQueue(assignment.stallId, npcId);
+    return true;
+  }
+
   getAssignedSlot(npcId) {
     const assignment = this.assignments.get(npcId);
     if (!assignment) return null;

@@ -1,4 +1,5 @@
 import PALETTE from "./palette.js";
+import { UI_FONT_FAMILY } from "./visualTheme.js";
 
 const SKIN_TONES = [PALETTE.headA, PALETTE.headB, PALETTE.headC];
 
@@ -54,7 +55,9 @@ export default class CharacterRenderer {
   }
 
   getSortY(entity, seatLookup) {
-    if (entity?.seatedSeatId) {
+    const logicState = entity?.logicState ?? entity?.state;
+
+    if (entity?.seatedSeatId && (logicState === "SEATED" || logicState === "eating")) {
       const seat = seatLookup.get(entity.seatedSeatId);
       if (seat) {
         return seat.actorY + 20;
@@ -70,12 +73,10 @@ export default class CharacterRenderer {
 
   drawStudent(ctx, student, seatLookup) {
     const seat = student.seatedSeatId ? seatLookup.get(student.seatedSeatId) : null;
-    const isSeated = Boolean(seat && student.state === "eating");
-    const hasMealInHand =
-      student.state === "moving_to_seat" ||
-      student.state === "waiting_for_seat";
+    const logicState = student.logicState ?? student.state;
+    const isSeated = Boolean(seat && logicState === "SEATED");
 
-    const mealPosition = isSeated && seat
+    const mealPosition = isSeated && student.hasMeal && seat
       ? { x: seat.mealX, y: seat.mealY }
       : null;
 
@@ -87,9 +88,9 @@ export default class CharacterRenderer {
       bodyColor: student.color,
       skinColor: this.getSkinTone(student.displayName),
       isSeated,
-      hasMeal: hasMealInHand || Boolean(mealPosition),
+      hasMeal: Boolean(student.hasMeal),
       mealPosition,
-      highlight: student.state === "paying"
+      highlight: logicState === "IN_QUEUE" && student.beingServed
     });
   }
 
@@ -132,7 +133,7 @@ export default class CharacterRenderer {
     } = config;
 
     const torsoWidth = Math.round(size * 0.72);
-    const torsoHeight = Math.round(size * (isSeated ? 0.42 : 0.48));
+    const torsoHeight = Math.round(size * (isSeated ? 0.42 : 0.5));
     const torsoX = x + Math.round((size - torsoWidth) / 2);
     const torsoY = y + Math.round(size * (isSeated ? 0.28 : 0.22));
 
@@ -166,6 +167,9 @@ export default class CharacterRenderer {
     ctx.fillStyle = bodyColor;
     ctx.fillRect(torsoX, torsoY, torsoWidth, torsoHeight);
 
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillRect(torsoX + 2, torsoY + 2, Math.max(4, torsoWidth - 4), 3);
+
     ctx.fillStyle = isPlayer ? PALETTE.playerAccent : PALETTE.leg;
     ctx.fillRect(
       torsoX + 2,
@@ -176,6 +180,9 @@ export default class CharacterRenderer {
 
     ctx.fillStyle = skinColor;
     ctx.fillRect(headX, headY, headSize, headSize);
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillRect(headX + 2, headY + headSize - 3, headSize - 4, 2);
 
     ctx.strokeStyle = highlight ? "#ffffff" : PALETTE.outline;
     ctx.lineWidth = highlight ? 2.2 : 1.4;
@@ -194,13 +201,21 @@ export default class CharacterRenderer {
       this.drawMealAt(ctx, mealX, mealY);
     }
 
-    ctx.fillStyle = PALETTE.shadowText;
-    ctx.font = "10px Arial";
     const safeLabel = truncateLabel(label || "Actor");
-    ctx.fillText(safeLabel, x - 3, y - 7);
+    const labelWidth = Math.max(28, safeLabel.length * 6 + 10);
+    const labelX = x + Math.round(size / 2) - Math.round(labelWidth / 2);
+    const labelY = y - 12;
+
+    ctx.fillStyle = PALETTE.plaque;
+    ctx.fillRect(labelX, labelY - 8, labelWidth, 12);
+
+    ctx.strokeStyle = PALETTE.plaqueStroke;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(labelX, labelY - 8, labelWidth, 12);
 
     ctx.fillStyle = PALETTE.label;
-    ctx.fillText(safeLabel, x - 4, y - 8);
+    ctx.font = `600 9px ${UI_FONT_FAMILY}`;
+    ctx.fillText(safeLabel, labelX + 5, labelY + 1);
 
     ctx.restore();
   }

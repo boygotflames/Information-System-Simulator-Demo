@@ -52,6 +52,7 @@ function buildServicePoint(definition, index) {
     queueFrontX: serviceAnchorX,
     queueY: serviceAnchorY + STALL_METRICS.queueSlotSpacing,
     queueSpacing: STALL_METRICS.queueSlotSpacing,
+    queueSlots: STALL_METRICS.maxQueueSlots,
     holdingX: serviceAnchorX,
     holdingY: serviceAnchorY + STALL_METRICS.queueSlotSpacing,
     stallRect: {

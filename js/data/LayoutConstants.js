@@ -18,7 +18,7 @@ export const STALL_METRICS = {
   bodyH: 82,
   serviceOffsetY: 42,
   queueSlotSpacing: 28,
-  maxQueueSlots: 6
+  maxQueueSlots: 4
 };
 
 export const DINING_GRID = {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>University Canteen IS Game</title>
-  <link rel="stylesheet" href="css/style.css?v=drawer-fix-2" />
+  <link rel="stylesheet" href="css/style.css?v=visual-package-v1" />
 </head>
 <body>
   <div class="dashboard-scrim" id="dashboardScrim"></div>
@@ -12,190 +12,256 @@
   <div class="app-shell">
     <main class="game-panel">
       <header class="topbar">
-        <div class="topbar-left">
-          <button
-            id="dashboardToggleBtn"
-            class="icon-btn"
-            aria-label="Toggle information systems dashboard"
-            aria-controls="dashboardPanel"
-            aria-expanded="false"
-          >
-            ☰
-          </button>
-
+        <div class="topbar-brand">
+          <div class="brand-pill">School Demo Ready</div>
           <div class="topbar-copy">
             <h1>University Canteen Information Systems Game</h1>
-            <p>Observe operations, inspect objects, and learn how a canteen Information System behaves in real time.</p>
+            <p>Retro-modern campus canteen simulation with live queue, dining, and tray-flow monitoring.</p>
           </div>
         </div>
 
         <div class="topbar-actions">
-          <button id="simulateTransactionBtn" class="action-btn">Simulate TPS</button>
-          <button id="managerModeBtn" class="action-btn">Manager Mode</button>
-          <button id="archiveReportBtn" class="action-btn">Archive Report</button>
-          <button id="planNextDayBtn" class="action-btn">Plan Next Day</button>
+          <div class="action-group">
+            <span class="group-label">Simulation</span>
+            <button id="simulateTransactionBtn" class="action-btn action-primary">Simulate TPS</button>
+            <button id="managerModeBtn" class="action-btn action-secondary">Manager Mode</button>
+          </div>
+
+          <div class="action-group">
+            <span class="group-label">Planning</span>
+            <button id="archiveReportBtn" class="action-btn action-ghost">Archive Report</button>
+            <button id="planNextDayBtn" class="action-btn action-ghost">Plan Next Day</button>
+            <button
+              id="dashboardToggleBtn"
+              class="panel-toggle-btn"
+              aria-label="Toggle information systems dashboard"
+              aria-controls="dashboardPanel"
+              aria-expanded="false"
+            >
+              Operations Console
+            </button>
+          </div>
         </div>
       </header>
 
       <section class="canvas-wrapper">
         <canvas id="gameCanvas" width="960" height="540"></canvas>
 
+        <aside class="utility-panel" aria-label="Context panel">
+          <div class="utility-panel-header">
+            <span class="panel-kicker">Context Rail</span>
+            <h2>Floor Context</h2>
+            <p>Keep the live simulation visible while tracking the player and inspected systems.</p>
+          </div>
+
+          <section class="utility-section">
+            <div class="section-title-row">
+              <span class="section-kicker">Player</span>
+              <h3>Student Profile</h3>
+            </div>
+            <div class="card profile-card">
+              <div class="profile-name">
+                <strong id="playerName">Player</strong>
+                <span id="playerStatus">Exploring</span>
+              </div>
+              <div class="metric-list compact">
+                <div class="metric-row"><span>Balance</span><strong>¥<span id="playerBalance">100.00</span></strong></div>
+                <div class="metric-row"><span>Current Meal</span><strong id="playerMeal">None</strong></div>
+                <div class="metric-row"><span>Total Purchases</span><strong id="playerTotalPurchases">0</strong></div>
+                <div class="metric-row"><span>Total Spent</span><strong>¥<span id="playerTotalSpent">0.00</span></strong></div>
+                <div class="metric-row"><span>Seat</span><strong id="playerSeat">None</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="utility-section">
+            <div class="section-title-row">
+              <span class="section-kicker">Inspect</span>
+              <h3>Selected Object</h3>
+            </div>
+            <div class="card stack">
+              <p class="detail-line"><span>Name</span><strong id="selectedName">None</strong></p>
+              <p class="detail-line"><span>Type</span><strong id="selectedType">None</strong></p>
+              <p class="detail-line"><span>IS Role</span><strong id="selectedRole">None</strong></p>
+              <p id="selectedDescription" class="detail-copy">
+                Click an object in the canteen to see how it fits into the information system.
+              </p>
+              <p class="detail-line"><span>Recipe Access</span><strong id="kmsRecipe">No recipe selected</strong></p>
+            </div>
+          </section>
+
+          <section class="utility-section">
+            <div class="section-title-row">
+              <span class="section-kicker">Guide</span>
+              <h3>Quick Controls</h3>
+            </div>
+            <div class="card quick-guide">
+              <div class="hint-pill">WASD / Arrows to move</div>
+              <div class="hint-pill">Click objects to inspect</div>
+              <div class="hint-pill">Press E to interact</div>
+              <div class="hint-pill">Open manager console on the right</div>
+            </div>
+          </section>
+        </aside>
+
+        <aside class="dashboard-panel" id="dashboardPanel" aria-hidden="true">
+          <div class="dashboard-header">
+            <div>
+              <span class="panel-kicker">Management Console</span>
+              <h2>Operations Board</h2>
+              <p id="systemStatus">System Status: Ready</p>
+            </div>
+
+            <button id="dashboardCloseBtn" class="icon-btn" aria-label="Close dashboard">×</button>
+          </div>
+
+          <div class="dashboard-body">
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Overview</span>
+                <h3>Operations Snapshot</h3>
+              </div>
+              <div class="card stat-grid">
+                <div class="stat-card"><span>Live Queue</span><strong id="liveQueueLength">0</strong></div>
+                <div class="stat-card"><span>Peak Queue</span><strong id="peakQueueLength">0</strong></div>
+                <div class="stat-card"><span>Auto TPS</span><strong id="autoTransactionCount">0</strong></div>
+                <div class="stat-card"><span>Demand Pressure</span><strong id="demandPressure">Normal</strong></div>
+                <div class="stat-card"><span>Transactions</span><strong id="tpsCount">0</strong></div>
+                <div class="stat-card"><span>Daily Sales</span><strong>¥<span id="misSales">0.00</span></strong></div>
+                <div class="stat-card"><span>Seats Used</span><strong><span id="occupiedDiningSeats">0</span>/<span id="totalDiningSeats">48</span></strong></div>
+                <div class="stat-card"><span>Students Dining</span><strong id="seatedStudentCount">0</strong></div>
+                <div class="stat-card"><span>Seating Pressure</span><strong id="seatingPressure">Low</strong></div>
+                <div class="stat-card"><span>Tray Return Line</span><strong id="trayReturnCount">0</strong></div>
+                <div class="stat-card"><span>Washed Trays</span><strong id="washedTrayCount">0</strong></div>
+                <div class="stat-card"><span>Efficiency</span><strong id="essEfficiencyScore">0/100</strong></div>
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Service</span>
+                <h3>Counter Flow</h3>
+              </div>
+              <div class="card metric-list">
+                <div class="metric-row"><span>Ramen Queue</span><strong id="queueRamen">0</strong></div>
+                <div class="metric-row"><span>Dry Noodle Queue</span><strong id="queueDryNoodles">0</strong></div>
+                <div class="metric-row"><span>Soup Queue</span><strong id="queueSoup">0</strong></div>
+                <div class="metric-row"><span>Ramen State</span><strong id="stateRamen">Open</strong></div>
+                <div class="metric-row"><span>Dry Noodle State</span><strong id="stateDryNoodles">Open</strong></div>
+                <div class="metric-row"><span>Soup State</span><strong id="stateSoup">Open</strong></div>
+                <div class="metric-row"><span>Ramen Pace</span><strong id="paceRamen">Slow</strong></div>
+                <div class="metric-row"><span>Dry Noodle Pace</span><strong id="paceDryNoodles">Medium</strong></div>
+                <div class="metric-row"><span>Soup Pace</span><strong id="paceSoup">Fast</strong></div>
+                <div class="metric-row"><span>Ramen Menu</span><strong id="menuRamenLive">Unknown</strong></div>
+                <div class="metric-row"><span>Dry Noodle Menu</span><strong id="menuDryNoodlesLive">Unknown</strong></div>
+                <div class="metric-row"><span>Soup Menu</span><strong id="menuSoupLive">Unknown</strong></div>
+                <div class="metric-row highlight-row"><span>Counter Recommendation</span><strong id="recommendedCounterAction">Counters balanced.</strong></div>
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Inventory</span>
+                <h3>Continuity + Stock</h3>
+              </div>
+              <div class="card">
+                <div class="metric-list">
+                  <div class="metric-row"><span>Noodles</span><strong id="inventoryNoodles">0</strong></div>
+                  <div class="metric-row"><span>Broth</span><strong id="inventoryBroth">0</strong></div>
+                  <div class="metric-row"><span>Eggs</span><strong id="inventoryEggs">0</strong></div>
+                  <div class="metric-row"><span>Scallions</span><strong id="inventoryScallions">0</strong></div>
+                  <div class="metric-row"><span>Restock Severity</span><strong id="restockSeverity">Stable</strong></div>
+                  <div class="metric-row"><span>Pending Restocks</span><strong id="pendingRestockCount">0</strong></div>
+                  <div class="metric-row"><span>Active Deliveries</span><strong id="activeDeliveryCount">0</strong></div>
+                  <div class="metric-row"><span>Completed Restocks</span><strong id="completedRestockCount">0</strong></div>
+                  <div class="metric-row"><span>Continuity Status</span><strong id="continuityStatus">Stable</strong></div>
+                  <div class="metric-row"><span>Recovery Events</span><strong id="continuityRecoveryCount">0</strong></div>
+                  <div class="metric-row highlight-row"><span>Restock Queue</span><strong id="dssRestockList">No restock needed</strong></div>
+                  <div class="metric-row"><span>Pending Detail</span><strong id="pendingRestockSummary">No pending restocks</strong></div>
+                  <div class="metric-row"><span>Inbound Detail</span><strong id="activeDeliverySummary">No active deliveries</strong></div>
+                  <div class="metric-row"><span>Last Manager Action</span><strong id="lastManagerAction">No intervention yet.</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Learning</span>
+                <h3>IS Layer</h3>
+              </div>
+              <div class="card">
+                <div class="stat-grid compact-grid">
+                  <div class="stat-card"><span>Hardware</span><strong id="hardwareCount">0</strong></div>
+                  <div class="stat-card"><span>Software</span><strong id="softwareCount">0</strong></div>
+                  <div class="stat-card"><span>Data</span><strong id="dataCount">0</strong></div>
+                  <div class="stat-card"><span>People</span><strong id="peopleCount">0</strong></div>
+                  <div class="stat-card"><span>Processes</span><strong id="processCount">0</strong></div>
+                  <div class="stat-card"><span>Top Stall</span><strong id="misTopStall">No sales yet</strong></div>
+                </div>
+                <div class="metric-list top-gap">
+                  <div class="metric-row"><span>DSS Alert</span><strong id="dssAlert">No alert</strong></div>
+                  <div class="metric-row"><span>ESS Summary</span><strong id="essSummary">Waiting for activity</strong></div>
+                  <div class="metric-row"><span>KMS Last Recipe</span><strong id="kmsLastRecipe">No recipe selected</strong></div>
+                  <div class="metric-row"><span>Blocked Orders</span><strong id="blockedTransactions">0</strong></div>
+                  <div class="metric-row"><span>Rerouted Orders</span><strong id="reroutedTransactions">0</strong></div>
+                  <div class="metric-row"><span>Abandoned Orders</span><strong id="abandonedTransactions">0</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Planning</span>
+                <h3>Manager Planning</h3>
+              </div>
+              <div class="card metric-list">
+                <div class="metric-row"><span>Active Plan</span><strong id="activePlanLabel">Baseline Plan</strong></div>
+                <div class="metric-row highlight-row"><span>Priority</span><strong id="planPriority">Keep counters balanced and watch queue growth.</strong></div>
+                <div class="metric-row"><span>Demand Plan</span><strong id="planDemandProfile">Arrival 2.6-4.1s | Ramen Stall 44% | Dry Noodle Stall 33% | Soup Station 23%</strong></div>
+                <div class="metric-row"><span>Generated</span><strong id="lastPlanGeneratedAt">No plan generated yet.</strong></div>
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-title-row">
+                <span class="section-kicker">Archive</span>
+                <h3>Reporting</h3>
+              </div>
+              <div class="card metric-list">
+                <div class="metric-row"><span>Archived Reports</span><strong id="reportArchiveCount">0</strong></div>
+                <div class="metric-row"><span>Latest Report</span><strong id="latestReportSummary">No archived reports yet.</strong></div>
+              </div>
+            </section>
+
+            <section class="dashboard-section section-full">
+              <div class="section-title-row">
+                <span class="section-kicker">Live Feed</span>
+                <h3>Transaction Feed</h3>
+              </div>
+              <div class="card feed" id="transactionFeed">
+                <p class="feed-placeholder">No transactions yet.</p>
+              </div>
+            </section>
+
+            <section class="dashboard-section section-full">
+              <div class="section-title-row">
+                <span class="section-kicker">Records</span>
+                <h3>Executive Report Archive</h3>
+              </div>
+              <div class="card feed" id="reportArchiveFeed">
+                <p class="feed-placeholder">No archived reports yet.</p>
+              </div>
+            </section>
+          </div>
+        </aside>
+
         <div class="canvas-hud">
-          <div class="hud-chip">WASD / Arrow Keys: Move</div>
-          <div class="hud-chip">Click: Inspect Object</div>
-          <div class="hud-chip">E: Interact</div>
+          <div class="hud-chip"><span class="chip-title">Move</span><span>WASD / Arrow Keys</span></div>
+          <div class="hud-chip"><span class="chip-title">Inspect</span><span>Click world objects</span></div>
+          <div class="hud-chip"><span class="chip-title">Interact</span><span>Press E near counters or seats</span></div>
         </div>
       </section>
     </main>
-
-    <aside class="dashboard-panel" id="dashboardPanel" aria-hidden="true">
-      <div class="dashboard-header">
-        <div>
-          <h2>Information Systems Dashboard</h2>
-          <p id="systemStatus">System Status: Ready</p>
-        </div>
-
-        <button id="dashboardCloseBtn" class="icon-btn" aria-label="Close dashboard">×</button>
-      </div>
-
-      <div class="dashboard-body">
-        <section class="dashboard-section section-full">
-          <h3>Player Student Profile</h3>
-          <div class="card stack">
-            <p><strong>Name:</strong> <span id="playerName">Player</span></p>
-            <p><strong>Balance:</strong> ¥<span id="playerBalance">100.00</span></p>
-            <p><strong>Current Meal:</strong> <span id="playerMeal">None</span></p>
-            <p><strong>Status:</strong> <span id="playerStatus">Exploring</span></p>
-            <p><strong>Total Purchases:</strong> <span id="playerTotalPurchases">0</span></p>
-            <p><strong>Total Spent:</strong> ¥<span id="playerTotalSpent">0.00</span></p>
-            <p><strong>Seat:</strong> <span id="playerSeat">None</span></p>
-          </div>
-        </section>
-
-        <section class="dashboard-section">
-          <h3>Selected Object</h3>
-          <div class="card stack">
-            <p><strong>Name:</strong> <span id="selectedName">None</span></p>
-            <p><strong>Type:</strong> <span id="selectedType">None</span></p>
-            <p><strong>IS Role:</strong> <span id="selectedRole">None</span></p>
-            <p id="selectedDescription">
-              Click an object in the canteen to see how it fits into an information system.
-            </p>
-          </div>
-        </section>
-
-        <section class="dashboard-section">
-          <h3>Inventory</h3>
-          <div class="card stack">
-            <p>Noodles: <span id="inventoryNoodles">0</span></p>
-            <p>Broth: <span id="inventoryBroth">0</span></p>
-            <p>Eggs: <span id="inventoryEggs">0</span></p>
-            <p>Scallions: <span id="inventoryScallions">0</span></p>
-          </div>
-        </section>
-
-        <section class="dashboard-section">
-          <h3>5 Core IS Components</h3>
-          <div class="grid-cards">
-            <div class="mini-card">
-              <span class="label">Hardware</span>
-              <strong id="hardwareCount">0</strong>
-            </div>
-            <div class="mini-card">
-              <span class="label">Software</span>
-              <strong id="softwareCount">0</strong>
-            </div>
-            <div class="mini-card">
-              <span class="label">Data</span>
-              <strong id="dataCount">0</strong>
-            </div>
-            <div class="mini-card">
-              <span class="label">People</span>
-              <strong id="peopleCount">0</strong>
-            </div>
-            <div class="mini-card">
-              <span class="label">Processes</span>
-              <strong id="processCount">0</strong>
-            </div>
-          </div>
-        </section>
-
-        <section class="dashboard-section">
-          <h3>System Types</h3>
-          <div class="card stack">
-            <p><strong>TPS Transactions:</strong> <span id="tpsCount">0</span></p>
-            <p><strong>MIS Daily Sales:</strong> ¥<span id="misSales">0.00</span></p>
-            <p><strong>DSS Alert:</strong> <span id="dssAlert">No alert</span></p>
-            <p><strong>ESS Summary:</strong> <span id="essSummary">Waiting for activity</span></p>
-            <p><strong>KMS Recipe Access:</strong> <span id="kmsRecipe">No recipe selected</span></p>
-          </div>
-        </section>
-
-        <section class="dashboard-section section-full">
-          <h3>Manager Analytics</h3>
-          <div class="card stack">
-            <p><strong>Top Stall:</strong> <span id="misTopStall">No sales yet</span></p>
-            <p><strong>Restock Queue:</strong> <span id="dssRestockList">No restock needed</span></p>
-            <p><strong>ESS Efficiency Score:</strong> <span id="essEfficiencyScore">0/100</span></p>
-            <p><strong>KMS Last Recipe:</strong> <span id="kmsLastRecipe">No recipe selected</span></p>
-            <p><strong>Live Queue:</strong> <span id="liveQueueLength">0</span></p>
-            <p><strong>Peak Queue:</strong> <span id="peakQueueLength">0</span></p>
-            <p><strong>Demand Pressure:</strong> <span id="demandPressure">Normal</span></p>
-            <p><strong>Auto TPS:</strong> <span id="autoTransactionCount">0</span></p>
-            <p><strong>Ramen Queue:</strong> <span id="queueRamen">0</span></p>
-            <p><strong>Dry Noodle Queue:</strong> <span id="queueDryNoodles">0</span></p>
-            <p><strong>Soup Queue:</strong> <span id="queueSoup">0</span></p>
-            <p><strong>Ramen State:</strong> <span id="stateRamen">Open</span></p>
-            <p><strong>Dry Noodle State:</strong> <span id="stateDryNoodles">Open</span></p>
-            <p><strong>Soup State:</strong> <span id="stateSoup">Open</span></p>
-            <p><strong>Ramen Pace:</strong> <span id="paceRamen">Slow</span></p>
-            <p><strong>Dry Noodle Pace:</strong> <span id="paceDryNoodles">Medium</span></p>
-            <p><strong>Soup Pace:</strong> <span id="paceSoup">Fast</span></p>
-            <p><strong>Ramen Menu Live:</strong> <span id="menuRamenLive">Unknown</span></p>
-            <p><strong>Dry Noodle Menu Live:</strong> <span id="menuDryNoodlesLive">Unknown</span></p>
-            <p><strong>Soup Menu Live:</strong> <span id="menuSoupLive">Unknown</span></p>
-            <p><strong>Counter Recommendation:</strong> <span id="recommendedCounterAction">Counters balanced.</span></p>
-            <p><strong>Continuity Status:</strong> <span id="continuityStatus">Stable</span></p>
-            <p><strong>Recovery Events:</strong> <span id="continuityRecoveryCount">0</span></p>
-            <p><strong>Restock Severity:</strong> <span id="restockSeverity">Stable</span></p>
-            <p><strong>Pending Restocks:</strong> <span id="pendingRestockCount">0</span></p>
-            <p><strong>Active Deliveries:</strong> <span id="activeDeliveryCount">0</span></p>
-            <p><strong>Completed Restocks:</strong> <span id="completedRestockCount">0</span></p>
-            <p><strong>Pending Restock Detail:</strong> <span id="pendingRestockSummary">No pending restocks</span></p>
-            <p><strong>Inbound Delivery Detail:</strong> <span id="activeDeliverySummary">No active deliveries</span></p>
-            <p><strong>Last Manager Action:</strong> <span id="lastManagerAction">No intervention yet.</span></p>
-            <p><strong>Archived Reports:</strong> <span id="reportArchiveCount">0</span></p>
-            <p><strong>Latest Report:</strong> <span id="latestReportSummary">No archived reports yet.</span></p>
-            <p><strong>Active Plan:</strong> <span id="activePlanLabel">Baseline Plan</span></p>
-            <p><strong>Plan Priority:</strong> <span id="planPriority">Keep counters balanced and watch queue growth.</span></p>
-            <p><strong>Demand Plan:</strong> <span id="planDemandProfile">Arrival 2.6-4.1s | Ramen Stall 44% | Dry Noodle Stall 33% | Soup Station 23%</span></p>
-            <p><strong>Plan Generated:</strong> <span id="lastPlanGeneratedAt">No plan generated yet.</span></p>
-            <p><strong>Abandoned Orders:</strong> <span id="abandonedTransactions">0</span></p>
-            <p><strong>Blocked Orders:</strong> <span id="blockedTransactions">0</span></p>
-            <p><strong>Rerouted Orders:</strong> <span id="reroutedTransactions">0</span></p>
-            <p><strong>Dining Seats Used:</strong> <span id="occupiedDiningSeats">0</span>/<span id="totalDiningSeats">48</span></p>
-            <p><strong>Students Dining:</strong> <span id="seatedStudentCount">0</span></p>
-            <p><strong>Seating Pressure:</strong> <span id="seatingPressure">Low</span></p>
-            <p><strong>Tray Return Line:</strong> <span id="trayReturnCount">0</span></p>
-            <p><strong>Washed Trays:</strong> <span id="washedTrayCount">0</span></p>
-          </div>
-        </section>
-
-        <section class="dashboard-section section-full">
-          <h3>Transaction Feed</h3>
-          <div class="card feed" id="transactionFeed">
-            <p class="feed-placeholder">No transactions yet.</p>
-          </div>
-        </section>
-
-        <section class="dashboard-section section-full">
-          <h3>Executive Report Archive</h3>
-          <div class="card feed" id="reportArchiveFeed">
-            <p class="feed-placeholder">No archived reports yet.</p>
-          </div>
-        </section>
-      </div>
-    </aside>
   </div>
 
   <script type="module" src="js/main.js"></script>

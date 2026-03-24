@@ -6,6 +6,9 @@ export const COUNTER_DEPTH = 16;
 export const SERVICE_BLOCK_SIZE = 36;
 
 export const TABLE_DEPTH = 14;
+export const WALL_BAND_HEIGHT = 86;
+export const UI_FONT_FAMILY = "\"Space Grotesk\", \"Segoe UI\", sans-serif";
+export const DISPLAY_FONT_FAMILY = "\"Barlow Condensed\", \"Arial Narrow\", sans-serif";
 
 function clampChannel(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -42,6 +45,9 @@ export function getCounterTheme(baseColor) {
     top: baseColor,
     front: darkenHex(baseColor, 0.72),
     edge: darkenHex(baseColor, 0.48),
-    trim: lightenHex(baseColor, 1.1)
+    trim: lightenHex(baseColor, 1.1),
+    sign: darkenHex(baseColor, 0.64),
+    stripe: lightenHex(baseColor, 1.26),
+    glow: lightenHex(baseColor, 1.4)
   };
 }

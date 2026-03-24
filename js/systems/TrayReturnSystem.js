@@ -11,15 +11,18 @@ export default class TrayReturnSystem {
     this.completedWashCount = 0;
   }
 
-  enqueueTray({ dishName = "Meal Tray" } = {}) {
+  enqueueTray({ dishName = "Meal Tray", startX = null, startY = null } = {}) {
     const start = TRAY_RETURN_PATH[0];
+    const hasCustomStart =
+      Number.isFinite(startX) &&
+      Number.isFinite(startY);
 
     this.trays.push({
       id: `tray_${this.nextTrayId++}`,
       dishName,
-      x: start.x,
-      y: start.y,
-      waypointIndex: 1,
+      x: hasCustomStart ? startX : start.x,
+      y: hasCustomStart ? startY : start.y,
+      waypointIndex: hasCustomStart ? 0 : 1,
       speed: 90,
       remove: false
     });
