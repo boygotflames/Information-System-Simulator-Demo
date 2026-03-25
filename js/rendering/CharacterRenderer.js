@@ -1,5 +1,5 @@
 import PALETTE from "./palette.js";
-import { UI_FONT_FAMILY } from "./visualTheme.js";
+import { UI_FONT_FAMILY } from "./VisualTheme.js";
 
 const SKIN_TONES = [PALETTE.headA, PALETTE.headB, PALETTE.headC];
 

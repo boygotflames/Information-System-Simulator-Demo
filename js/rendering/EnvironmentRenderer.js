@@ -10,7 +10,7 @@ import {
   DISPLAY_FONT_FAMILY,
   WALL_BAND_HEIGHT,
   getCounterTheme
-} from "./visualTheme.js";
+} from "./VisualTheme.js";
 import {
   drawCounterSkin,
   drawDecor,

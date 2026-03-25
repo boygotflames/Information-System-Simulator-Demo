@@ -1,5 +1,5 @@
 import PALETTE from "./palette.js";
-import { DISPLAY_FONT_FAMILY, UI_FONT_FAMILY } from "./visualTheme.js";
+import { DISPLAY_FONT_FAMILY, UI_FONT_FAMILY } from "./VisualTheme.js";
 import { getSprite } from "./spriteLoader.js";
 import { getSpriteDefinition } from "./spriteRegistry.js";
 

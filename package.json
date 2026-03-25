@@ -1,0 +1,49 @@
+{
+  "name": "university-canteen-is-game",
+  "version": "1.0.0",
+  "description": "University Canteen IS Game packaged as a portable Electron desktop app.",
+  "main": "electron/main.js",
+  "productName": "University Canteen IS Game",
+  "author": "Codex",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:portable": "set CSC_IDENTITY_AUTO_DISCOVERY=false && electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^37.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.schooldemo.canteenisgame",
+    "productName": "University Canteen IS Game",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "assets/**/*",
+      "electron/**/*",
+      "!dist{,/**}",
+      "!docs{,/**}"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  }
+}
