@@ -64,6 +64,140 @@ If you want to test the packaged desktop shell, the repository also supports Ele
 - `assets/`: in-repo image assets, sprites, and visual resources
 - `docs/`: documentation and repository-facing support files
 
+## Project Tree
+
+```text
+Information-System-Simulator-Demo/
+├── assets/
+│   ├── sprites/
+│   │   ├── pets/
+│   │   │   ├── cat/
+│   │   │   │   └── Cat Sprite Sheet.png
+│   │   │   └── dog/
+│   │   │       └── 48DogSpriteSheet.png
+│   │   ├── props/
+│   │   │   └── decorations_LRK.png
+│   │   └── ui/
+│   │       ├── Kenny/
+│   │       │   └── 9-Slice/
+│   │       │       ├── Ancient/
+│   │       │       │   ├── brown.png
+│   │       │       │   ├── brown_inlay.png
+│   │       │       │   ├── brown_pressed.png
+│   │       │       │   ├── grey.png
+│   │       │       │   ├── grey_inlay.png
+│   │       │       │   ├── grey_pressed.png
+│   │       │       │   ├── tan.png
+│   │       │       │   ├── tan_inlay.png
+│   │       │       │   ├── tan_pressed.png
+│   │       │       │   ├── white.png
+│   │       │       │   ├── white_inlay.png
+│   │       │       │   └── white_pressed.png
+│   │       │       ├── Colored/
+│   │       │       │   ├── blue.png
+│   │       │       │   ├── blue_pressed.png
+│   │       │       │   ├── green.png
+│   │       │       │   ├── green_pressed.png
+│   │       │       │   ├── grey.png
+│   │       │       │   ├── grey_pressed.png
+│   │       │       │   ├── red.png
+│   │       │       │   ├── red_pressed.png
+│   │       │       │   ├── yellow.png
+│   │       │       │   └── yellow_pressed.png
+│   │       │       ├── Outline/
+│   │       │       │   ├── blue.png
+│   │       │       │   ├── blue_pressed.png
+│   │       │       │   ├── green.png
+│   │       │       │   ├── green_pressed.png
+│   │       │       │   ├── red.png
+│   │       │       │   ├── red_pressed.png
+│   │       │       │   ├── yellow.png
+│   │       │       │   └── yellow_pressed.png
+│   │       │       ├── list.png
+│   │       │       ├── space.png
+│   │       │       └── space_inlay.png
+│   │       └── Spritesheet/
+│   │           ├── UIpackSheet_magenta.png
+│   │           └── UIpackSheet_transparent.png
+│   └── tiles/
+│       ├── floor/
+│       │   └── floorswalls_LRK.png
+│       ├── interior/
+│       │   ├── cabinets_LRK.png
+│       │   ├── kitchen_LRK.png
+│       │   └── livingroom_LRK.png
+│       └── walls/
+│           └── doorswindowsstairs_LRK.png
+├── css/
+│   └── style.css
+├── docs/
+│   ├── images/
+│   │   └── pixel_art_large.png
+│   └── educational-mapping.md
+├── electron/
+│   └── main.js
+├── js/
+│   ├── core/
+│   │   ├── Counterbehaviorprofile.js
+│   │   ├── ExecutiveReportEngine.js
+│   │   ├── game.js
+│   │   ├── InformationSystemController.js
+│   │   ├── InputHandler.js
+│   │   ├── LocalStateRepository.js
+│   │   ├── OperationalPlanningEngine.js
+│   │   ├── renderer.js
+│   │   ├── RestockEngine.js
+│   │   └── ServiceRulesEngine.js
+│   ├── data/
+│   │   ├── canteenLayout.js
+│   │   ├── collisionLayout.js
+│   │   ├── diningAreaLayout.js
+│   │   ├── inspectables.js
+│   │   ├── LayoutConstants.js
+│   │   ├── namePools.js
+│   │   ├── recipeBook.js
+│   │   ├── recipes.js
+│   │   ├── restockProfiles.js
+│   │   ├── stallCatalog.js
+│   │   ├── stalls.js
+│   │   └── tutorials.js
+│   ├── entities/
+│   │   ├── Cook.js
+│   │   ├── Manager.js
+│   │   ├── PlayerAvatar.js
+│   │   ├── PosTerminal.js
+│   │   ├── Server.js
+│   │   └── Student.js
+│   ├── rendering/
+│   │   ├── assetInventory.js
+│   │   ├── CharacterRenderer.js
+│   │   ├── EnvironmentRenderer.js
+│   │   ├── palette.js
+│   │   ├── renderSkin.js
+│   │   ├── ShadowRenderer.js
+│   │   ├── spriteLoader.js
+│   │   ├── spriteRegistry.js
+│   │   ├── VisualTheme.js
+│   │   └── WorldRenderer.js
+│   ├── systems/
+│   │   ├── CanvaInspector.js
+│   │   ├── CollisionSystem.js
+│   │   ├── InteractionSystem.js
+│   │   ├── NpcPathRouter.js
+│   │   ├── QueueSystem.js
+│   │   ├── StudentDiningFlowSimulator.js
+│   │   └── TrayReturnSystem.js
+│   ├── ui/
+│   │   └── dashboardToggle.js
+│   └── main.js
+├── index.html
+├── LICENSE
+├── package-lock.json
+├── package.json
+├── README.md
+└── README_zh-CN.md
+```
+
 ## Open Source / License
 
 This is an open-source project. You are welcome to fork it, study it, adapt it, and remake it for your own educational or practical benefit under the terms of the MIT License. See the [LICENSE](LICENSE) file for the full license text.
