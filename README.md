@@ -6,6 +6,8 @@
 
 **Maintainer / 维护者:** Yusi ([boygotflames](https://github.com/boygotflames))
 
+**Repository / 仓库地址:** [Information-System-Simulator-Demo](https://github.com/boygotflames/Information-System-Simulator-Demo)
+
 ## Project Vision & Educational Value / 项目愿景与教学价值
 
 This project exists to make Information Systems concepts visible, concrete, and interactive. It presents a 2D university canteen simulation where queues, routing, transactions, dining flow, tray return logistics, reporting, planning, and operational monitoring can all be observed in one connected environment. Instead of treating Information Systems as abstract theory, the project shows how people, processes, data, software, and day-to-day operational decisions interact inside a living system.
@@ -32,23 +34,35 @@ As an educational demo, it helps students understand that real-world systems are
 - 将游戏中的行为映射到信息系统核心概念，如人员、流程、软件、数据与决策支持
 - 轻量级浏览器架构，并支持 Electron 便携版打包，适合演示使用
 
+## Releases / 发布版本
+
+The easiest way to use the project on Windows is through the portable desktop build published in the GitHub Releases area. Go to the Releases page, download the latest portable executable, and run it directly without installing anything.
+
+Windows 用户最简单的使用方式，是直接通过 GitHub Releases 页面下载便携式桌面版本。进入 Releases 页面后，下载最新的便携版可执行文件即可直接运行，无需安装。
+
+- Releases page: [GitHub Releases](https://github.com/boygotflames/Information-System-Simulator-Demo/releases)
+- Expected portable artifact: `University Canteen IS Game-1.0.0-portable.exe`
+
+- 发布页面：[GitHub Releases](https://github.com/boygotflames/Information-System-Simulator-Demo/releases)
+- 便携版产物名称：`University Canteen IS Game-1.0.0-portable.exe`
+
 ## For Users / 普通用户
 
-If you want to use the desktop version on Windows, copy the portable executable build to any folder, desktop location, or USB drive and launch it directly. No installation is required. The current portable build artifact is named `University Canteen IS Game-1.0.0-portable.exe`.
+If you only want to run the app, do not clone the repository. Open the Releases page, download the latest portable executable, copy it anywhere you like such as your Desktop, a folder, or a USB drive, and launch it directly. No installation is required on the target machine.
 
-如果你希望在 Windows 上直接使用桌面版，可以将便携版可执行文件复制到任意文件夹、桌面位置或 U 盘中，然后直接运行。它不需要安装。当前便携版构建产物名称为 `University Canteen IS Game-1.0.0-portable.exe`。
+如果你只是想运行这个项目，不需要克隆仓库。请直接打开 Releases 页面，下载最新的便携版可执行文件，然后把它放到桌面、任意文件夹或 U 盘中直接运行即可。目标机器不需要安装。
 
-- Download or copy the portable executable
+- Open the Releases page
+- Download the latest portable executable
 - Place it anywhere you like, including a USB drive
 - Double-click to launch
-- No installation is required on the target machine
-- If Windows SmartScreen appears, review the file, choose **More info**, and continue only if you trust the source
+- If Windows SmartScreen appears, choose **More info** and continue only if you trust the file source
 
-- 下载或复制便携版可执行文件
+- 打开 Releases 页面
+- 下载最新的便携版可执行文件
 - 可以放在任意位置，包括 U 盘
 - 双击即可启动
-- 目标机器无需安装
-- 如果 Windows SmartScreen 弹出提示，请在确认来源可信后点击 **More info** 再继续运行
+- 如果 Windows SmartScreen 弹出提示，请在确认文件来源可信后点击 **More info** 再继续运行
 
 ## For Developers / Contributors / 开发者与贡献者
 
@@ -57,8 +71,8 @@ Clone the repository, open it in your preferred editor, and run a simple local s
 你可以先克隆仓库，再用自己习惯的编辑器打开，并使用简单的本地服务器在浏览器中测试。项目本身保持轻量，因此 Python 自带的本地服务器是一个很实用的默认方案。
 
 ```bash
-git clone <your-repository-url>
-cd canteen-IS-game
+git clone https://github.com/boygotflames/Information-System-Simulator-Demo.git
+cd Information-System-Simulator-Demo
 python -m http.server 8000
 ```
 
@@ -70,9 +84,9 @@ Then open Google Chrome and visit:
 http://localhost:8000
 ```
 
-If you want to work with the packaged desktop shell, the repository also supports Electron-based portable Windows builds.
+If you want to test the packaged desktop shell, the repository also supports Electron-based portable Windows builds.
 
-如果你希望使用打包后的桌面外壳进行开发测试，仓库也支持基于 Electron 的 Windows 便携版构建。
+如果你希望测试打包后的桌面外壳，仓库也支持基于 Electron 的 Windows 便携版构建。
 
 ## Project Structure / 项目结构
 
