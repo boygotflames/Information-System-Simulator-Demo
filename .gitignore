@@ -1,18 +1,58 @@
-# OS files
+# OS junk
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Editor folders
+# Editor / IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Logs and temp files
+# Logs
 *.log
-*.tmp
-*.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Runtime/cache folders
+# Temp / cache
+*.tmp
+*.temp
+*.bak
+.cache/
+coverage/
+
+# Node / Electron
 node_modules/
 dist/
 build/
-.cache/
+out/
+release/
+electron-builder-cache/
+*.tsbuildinfo
+
+# Python / local server helpers
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Package artifacts
+*.asar
+*.blockmap
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.msi
+*.zip
+*.7z
+
+# Keep source assets and documentation tracked
+!assets/
+!assets/**
+!docs/
+!docs/**
