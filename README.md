@@ -4,7 +4,7 @@
 
 *Read this in other languages: [简体中文 (Chinese)](README_zh-CN.md)*
 
-![University Canteen IS Game hero](docs/images/pixel_art_large.png)
+![University Canteen IS Game hero](docs/images/university-canteen-is-game-screenshot.png)
 
 **Maintainer:** Yusi ([boygotflames](https://github.com/boygotflames))
 

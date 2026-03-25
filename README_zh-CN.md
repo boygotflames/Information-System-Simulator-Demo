@@ -4,7 +4,7 @@
 
 *阅读其他语言版本: [English](README.md)*
 
-![University Canteen IS Game hero](docs/images/pixel_art_large.png)
+![University Canteen IS Game hero](docs/images/university-canteen-is-game-screenshot.png)
 
 **维护者：** Yusi（[boygotflames](https://github.com/boygotflames)）
 
