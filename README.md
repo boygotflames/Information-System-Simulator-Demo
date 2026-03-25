@@ -4,6 +4,8 @@
 
 ![University Canteen IS Game hero](docs/images/pixel_art_large.png)
 
+**Maintainer / 维护者:** Yusi ([boygotflames](https://github.com/boygotflames))
+
 ## Project Vision & Educational Value / 项目愿景与教学价值
 
 This project exists to make Information Systems concepts visible, concrete, and interactive. It presents a 2D university canteen simulation where queues, routing, transactions, dining flow, tray return logistics, reporting, planning, and operational monitoring can all be observed in one connected environment. Instead of treating Information Systems as abstract theory, the project shows how people, processes, data, software, and day-to-day operational decisions interact inside a living system.
@@ -91,3 +93,7 @@ If you want to work with the packaged desktop shell, the repository also support
 This is an open-source project. You are welcome to fork it, study it, adapt it, and remake it for your own educational or practical benefit under the terms of the MIT License. See the [LICENSE](LICENSE) file for the full license text.
 
 这是一个开源项目。你可以在 MIT License 的许可范围内自由 fork、学习、修改、改编，并将其重新制作成适合自己教学或实践用途的版本。完整许可内容请参见 [LICENSE](LICENSE) 文件。
+
+Project attribution: maintained by Yusi ([boygotflames](https://github.com/boygotflames)).
+
+项目署名：由 Yusi（[boygotflames](https://github.com/boygotflames)）维护。
